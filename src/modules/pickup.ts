@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { db } from "../db";
+import { db, type Tx } from "../db";
 import {
   atomic,
   one,
@@ -41,6 +41,12 @@ export function locationDecision(c: Row, s: Location, server: number) {
   if (distance + s.accuracy <= Number(c.radius)) return "accepted";
   if (distance - s.accuracy > Number(c.radius)) return "LOCATION_OUTSIDE";
   return "LOCATION_INCONCLUSIVE";
+}
+export async function recordArrival(tx: Tx, order: string, collector: string) {
+  return rows(
+    tx,
+    sql`update mint.units u set arrived_at=statement_timestamp(),collection_deadline=case when u.mode='ready' or u.state='ready' then statement_timestamp()+c.collection_minutes*interval '1 minute' else u.collection_deadline end from mint.orders o join mint.canteens c on c.id=o.canteen_id where u.order_id=o.id and o.id=${order} and o.state='confirmed' and o.deadline>statement_timestamp() and u.collector_id=${collector} and u.arrived_at is null and u.state in ('pending','preparing','ready') returning u.*`,
+  );
 }
 export async function checkIn(a: Actor, id: string, s: Location) {
   student(a);
@@ -87,13 +93,23 @@ export async function checkIn(a: Actor, id: string, s: Location) {
         code: result,
         message:
           result === "LOCATION_OUTSIDE"
-            ? "You are outside the configured pickup area. Move closer and retry."
+            ? c.demo
+              ? "This canteen uses a demo pickup location. Show your pass at the counter; a staff scan checks you in."
+              : "You are outside the configured pickup area. Move closer and retry, or show your pass at the counter."
             : "Location quality is inconclusive. Retry outdoors with precise location enabled.",
       };
-    const changed = await rows(
+    const changed = await recordArrival(tx, id, a.id);
+    const unarrived = await one(
       tx,
-      sql`update mint.units set arrived_at=clock_timestamp(),collection_deadline=case when mode='ready' or state='ready' then clock_timestamp()+${c.collection_minutes}*interval '1 minute' else collection_deadline end where order_id=${id} and collector_id=${a.id} and arrived_at is null and state in ('pending','preparing','ready') returning id`,
+      sql`select 1 from mint.units where order_id=${id} and collector_id=${a.id} and arrived_at is null and state in ('pending','preparing','ready') limit 1`,
     );
+    if (unarrived)
+      return {
+        accepted: false,
+        code: "ARRIVAL_EXPIRED",
+        message:
+          "The final arrival deadline passed. Refresh the order before collection.",
+      };
     return {
       accepted: true,
       count: changed.length,

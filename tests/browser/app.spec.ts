@@ -128,7 +128,7 @@ test("serving mobile interface uses scoped worklists and no arrival control", as
   ).toBeVisible();
   await expect(
     page.getByText(
-      "Scanning looks up portions. It never confirms arrival or handover.",
+      "Scanning a valid pass checks in the collector and shows their portions. Confirm handover only after giving items.",
     ),
   ).toBeVisible();
   await expect(
@@ -157,18 +157,29 @@ test("manager mobile interface keeps stock updates scoped to assigned canteens",
 
 test("connected partial pickup: credit checkout, invitation, app geofence, station passes and persistent preparation", async ({
   browser,
+  request,
 }) => {
   // Live PostgreSQL transactions cross the network; this verifies correctness, not the production latency target.
   test.setTimeout(480000);
+  const catalogue = await (await request.get("/api/catalogue")).json();
+  const main = catalogue.canteens.find(
+    (c: { name: string }) => c.name === "Main",
+  );
+  expect(main).toBeTruthy();
+  const geolocation = {
+    latitude: Number(main.lat),
+    longitude: Number(main.lng),
+    accuracy: 5,
+  };
   const payerContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     permissions: ["geolocation"],
-    geolocation: { latitude: 0.01, longitude: 0.01, accuracy: 5 },
+    geolocation,
   });
   const friendContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     permissions: ["geolocation"],
-    geolocation: { latitude: 0.01, longitude: 0.01, accuracy: 5 },
+    geolocation,
   });
   const staffContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -195,7 +206,7 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     await payer.getByRole("button", { name: "Place order" }).click();
     await expect(
       payer.getByText(
-        "Order confirmed. Check in through your app before collection.",
+        "Order confirmed. Check in with location or show your pass at the counter.",
       ),
     ).toBeVisible();
     const me = await payer.evaluate(

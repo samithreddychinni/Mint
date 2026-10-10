@@ -446,7 +446,7 @@ export function MintApp() {
     if (o.state === "confirmed") {
       openOrder(o.id);
       setMessage(
-        "Order confirmed. Check in through your app before collection.",
+        "Order confirmed. Check in with location or show your pass at the counter.",
       );
       return;
     }
@@ -515,10 +515,10 @@ export function MintApp() {
                   reject(
                     new Error(
                       error.code === 1
-                        ? "Allow location access in your browser settings, then retry check-in."
+                        ? "Allow location for MINT in your browser and precise location on your phone, then retry. You can also show your pass at the counter."
                         : error.code === 3
-                          ? "Location timed out. Move outdoors and retry with precise location enabled."
-                          : "Location is unavailable. Move outdoors and retry.",
+                          ? "Location timed out. Move outdoors and retry with precise location enabled, or show your pass at the counter."
+                          : "Location is unavailable. Move outdoors and retry, or show your pass at the counter.",
                     ),
                   ),
                 {
@@ -542,20 +542,32 @@ export function MintApp() {
       );
       setMessage(r.message);
     }, undefined);
+  const resolveToken = (value: string) =>
+    run(async () => {
+      const r = await api<{ units: Unit[]; message: string }>("staff/resolve", {
+        stationId: station,
+        token: value,
+      });
+      setResolved(r.units);
+      setStaffSelected([]);
+      setMessage(r.message);
+    });
   const scan = async () => {
     setScanning(true);
     try {
       const { BrowserQRCodeReader } = await import("@zxing/browser");
       const reader = new BrowserQRCodeReader();
+      let captured = false;
       scanControls.current = await reader.decodeFromVideoDevice(
         undefined,
         video.current!,
         (result) => {
-          if (result) {
+          if (result && !captured) {
+            captured = true;
             setToken(result.getText());
             scanControls.current?.stop();
             setScanning(false);
-            setMessage("Code captured. Resolve the pass to inspect portions.");
+            void resolveToken(result.getText());
           }
         },
       );
@@ -1276,7 +1288,7 @@ export function MintApp() {
                         <p>
                           Arrive within <strong>25 minutes</strong>, with 5
                           minutes of grace. Check in using a fresh phone
-                          location.
+                          location or show your pickup pass at the counter.
                         </p>
                       </div>
                       <div className="policy-line">
@@ -1502,8 +1514,11 @@ export function MintApp() {
                                   Check in through my app
                                 </Button>
                                 <p className="help-text">
-                                  Allow precise location. If accuracy is poor,
-                                  move outdoors and retry.
+                                  {catalogue.canteens.find(
+                                    (c) => c.id === detail.order.canteen_id,
+                                  )?.demo
+                                    ? "This canteen uses a demo pickup location. Show your pass at the counter to check in."
+                                    : "Allow precise location, or show your pass at the counter. A staff scan also checks you in."}
                                 </p>
                               </div>
                             )}
@@ -1826,7 +1841,7 @@ export function MintApp() {
                             <p className="help-text">
                               {code.arrived
                                 ? "Checked in · ready for staff verification"
-                                : "Check in before handover"}
+                                : "Show this pass at the counter to check in"}
                             </p>
                             <Button
                               variant="ghost"
@@ -2170,8 +2185,8 @@ export function MintApp() {
                   >
                     <h3 className="text-xl font-bold">Look up a pickup</h3>
                     <p className="text-xs text-muted-foreground">
-                      Scanning looks up portions. It never confirms arrival or
-                      handover.
+                      Scanning a valid pass checks in the collector and shows
+                      their portions. Confirm handover only after giving items.
                     </p>
                     <video
                       ref={video}
@@ -2200,17 +2215,7 @@ export function MintApp() {
                     <Button
                       className="w-full"
                       disabled={busy || !online || !token || !station}
-                      onClick={() =>
-                        void run(async () => {
-                          const r = await api<{
-                            units: Unit[];
-                            message: string;
-                          }>("staff/resolve", { stationId: station, token });
-                          setResolved(r.units);
-                          setStaffSelected([]);
-                          setMessage(r.message);
-                        })
-                      }
+                      onClick={() => void resolveToken(token)}
                     >
                       Resolve pass
                     </Button>

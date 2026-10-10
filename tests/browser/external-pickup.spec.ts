@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 test("actual captured Razorpay test order requires student check-in and commits one scoped handover", async ({
   browser,
+  request,
 }) => {
   test.skip(
     !existsSync(".local/test-payment-end-to-end.json"),
@@ -13,10 +14,19 @@ test("actual captured Razorpay test order requires student check-in and commits 
   const accounts = JSON.parse(
     readFileSync(".local/demo-accounts.json", "utf8"),
   );
+  const catalogue = await (await request.get("/api/catalogue")).json();
+  const main = catalogue.canteens.find(
+    (c: { name: string }) => c.name === "Main",
+  );
+  expect(main).toBeTruthy();
   const studentContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     permissions: ["geolocation"],
-    geolocation: { latitude: 0.01, longitude: 0.01, accuracy: 5 },
+    geolocation: {
+      latitude: Number(main.lat),
+      longitude: Number(main.lng),
+      accuracy: 5,
+    },
   });
   const staffContext = await browser.newContext({
     viewport: { width: 390, height: 844 },

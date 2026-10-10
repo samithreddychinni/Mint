@@ -311,12 +311,17 @@ test("A11: simultaneous credit spend cannot overdraw the account", async () => {
   assert.equal(ac.available, 0);
   assert.equal(ac.reserved, 500);
 });
-test("A12/A14/A35/A36: app check-in required; staff scan cannot create arrival", async () => {
+test("location check-in rejects staff and a reference lookup cannot create arrival", async () => {
   const f = await fixture();
   const o = await confirmed(f);
-  const pass = (await passes(f.payer, String(o.id)))[0];
-  const resolved = await resolvePass(f.staff, pass.token, f.s);
-  assert.match(resolved.message, /Check in through/);
+  const resolved = await resolvePass(
+    f.staff,
+    "",
+    f.s,
+    String(o.reference),
+    f.payer.email,
+  );
+  assert.match(resolved.message, /reference lookup cannot confirm arrival/i);
   let u = (await portions(o.id))[0];
   await assert.rejects(
     handover(
@@ -349,6 +354,111 @@ test("A12/A14/A35/A36: app check-in required; staff scan cannot create arrival",
     ))!.committed,
     1,
   );
+});
+test("a valid staff pass scan arrives only that collector across counters and retries do not extend deadlines", async () => {
+  const f = await fixture();
+  const held = await hold(f.payer, {
+    canteenId: f.c,
+    lines: [
+      { itemId: f.item, quantity: 2, price: 500 },
+      { itemId: f.made, quantity: 1, price: 300 },
+    ],
+    credit: 1300,
+    key: randomUUID(),
+  });
+  const o = await creditOnly(f.payer, String(held.id));
+  const shared = (await portions(o.id)).find((u) => u.mode === "ready")!;
+  const invitation = await invite(
+    f.payer,
+    String(o.id),
+    [String(shared.id)],
+    f.friend.email,
+  );
+  assert.ok(invitation);
+  await invitationAction(f.friend, String(invitation.id), "accept");
+  const pass = (await passes(f.payer, String(o.id))).find(
+    (p) => p.stationId === f.s,
+  )!;
+  const resolved = await resolvePass(f.staff, pass.token, f.s);
+  assert.match(resolved.message, /Arrival confirmed/);
+  assert.ok(resolved.units.every((u) => u.arrived_at));
+  const first = await portions(o.id);
+  const own = first.filter((u) => u.collector_id === f.payer.id);
+  assert.equal(own.length, 2);
+  assert.ok(own.every((u) => u.arrived_at));
+  assert.ok(own.every((u) => String(u.arrived_at) === String(own[0].arrived_at)));
+  assert.equal(
+    first.find((u) => u.collector_id === f.friend.id)!.arrived_at,
+    null,
+  );
+  assert.ok(own.find((u) => u.mode === "ready")!.collection_deadline);
+  assert.equal(own.find((u) => u.mode === "made")!.collection_deadline, null);
+  await resolvePass(f.staff, pass.token, f.s);
+  const retry = await portions(o.id);
+  for (const before of own) {
+    const after = retry.find((u) => u.id === before.id)!;
+    assert.deepEqual(after.arrived_at, before.arrived_at);
+    assert.deepEqual(after.collection_deadline, before.collection_deadline);
+  }
+  assert.equal(
+    (await one(
+      db,
+      sql`select count(*)::int count from mint.audit_events where entity=${o.id} and action='staff_scan_arrival'`,
+    ))!.count,
+    1,
+  );
+  await handover(
+    f.staff,
+    f.s,
+    resolved.units.map((u) => ({
+      id: String(u.id),
+      version: Number(u.version),
+    })),
+    randomUUID(),
+  );
+  await preparation(
+    f.manager,
+    String(own.find((u) => u.mode === "made")!.id),
+    "start",
+  );
+  assert.equal(
+    (await portions(o.id)).find((u) => u.mode === "made")!.state,
+    "preparing",
+  );
+});
+test("unauthorized, wrong-counter, expired and revoked scans do not record arrival", async () => {
+  const f = await fixture();
+  const o = await confirmed(f);
+  const pass = (await passes(f.payer, String(o.id)))[0];
+  await assert.rejects(
+    resolvePass(f.payer, pass.token, f.s),
+    safeError("FORBIDDEN"),
+  );
+  await assert.rejects(
+    resolvePass(f.manager, pass.token, f.d),
+    safeError("WRONG_STATION"),
+  );
+  await assert.rejects(
+    resolvePass(f.staff, "invalid-pass", f.s),
+    safeError("PASS_REVOKED"),
+  );
+  await db.execute(
+    sql`update mint.passes set expires_at=clock_timestamp() where order_id=${o.id}`,
+  );
+  await assert.rejects(
+    resolvePass(f.staff, pass.token, f.s),
+    safeError("PASS_REVOKED"),
+  );
+  assert.equal((await portions(o.id))[0].arrived_at, null);
+  const fresh = (await passes(f.payer, String(o.id)))[0];
+  await db.execute(
+    sql`update mint.orders set deadline=clock_timestamp() where id=${o.id}`,
+  );
+  await assert.rejects(
+    resolvePass(f.staff, fresh.token, f.s),
+    safeError("PASS_REVOKED"),
+  );
+  assert.equal((await portions(o.id))[0].arrived_at, null);
 });
 test("A13/A14: server clock and accuracy-overlap determine location eligibility", () => {
   const c = { lat: 11, lng: 77, radius: 65, max_accuracy: 25 };
@@ -386,7 +496,7 @@ test("A15/A37: arrival at final deadline expires rather than accepting check-in"
   assert.equal(u.state, "expired");
   assert.equal(u.arrived_at, null);
 });
-test("A16/A18/A19/A25: two of four portions transfer; old pass revoked; partial collector expiry", async () => {
+test("two of four portions transfer; old pass excludes transferred portions; only the scanned collector arrives", async () => {
   const f = await fixture();
   const o = await confirmed(f, 4);
   const units = await portions(o.id);
@@ -404,7 +514,6 @@ test("A16/A18/A19/A25: two of four portions transfer; old pass revoked; partial 
     (await portions(o.id)).filter((u) => u.collector_id === f.friend.id).length,
     2,
   );
-  await checkIn(f.friend, String(o.id), sample());
   await db.execute(
     sql`update mint.orders set deadline=clock_timestamp() where id=${o.id}`,
   );
@@ -415,9 +524,9 @@ test("A16/A18/A19/A25: two of four portions transfer; old pass revoked; partial 
     after.filter((u) => u.arrived_at !== null && u.state === "pending").length,
     2,
   );
-  const friendPass = (await passes(f.friend, String(o.id)))[0];
+  const payerPass = (await passes(f.payer, String(o.id)))[0];
   assert.equal(
-    (await resolvePass(f.staff, friendPass.token, f.s)).units.length,
+    (await resolvePass(f.staff, payerPass.token, f.s)).units.length,
     2,
   );
 });

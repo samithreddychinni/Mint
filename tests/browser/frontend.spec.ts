@@ -1,9 +1,10 @@
 import { test, expect as browserExpect, type Page } from "@playwright/test";
+import QRCode from "qrcode";
 const expect = browserExpect.configure({ timeout: 5000 });
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() =>
-    localStorage.setItem("mint-install-dismissed", "1"),
+    localStorage.setItem("mint-install-dismissed", String(Date.now())),
   );
 });
 
@@ -623,4 +624,81 @@ test("staff partial handover keeps preparation tokens and permits the next picku
     "",
   );
   await page.screenshot({ path: ".local/qa/serving-390.png" });
+});
+
+test("camera scan reads the QR and displays arrived portions without a second resolve click", async ({
+  page,
+}) => {
+  const image = await QRCode.toDataURL("camera-test-pass", {
+    width: 640,
+    margin: 4,
+  });
+  await page.addInitScript((src) => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      value: async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 640;
+        const image = new Image();
+        image.src = src;
+        await image.decode();
+        const ctx = canvas.getContext("2d")!;
+        const draw = () => {
+          ctx.drawImage(image, 0, 0);
+          requestAnimationFrame(draw);
+        };
+        draw();
+        return canvas.captureStream(10);
+      },
+    });
+  }, image);
+  let resolves = 0,
+    handovers = 0;
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") return route.fulfill({ json: catalogue });
+    if (path === "/api/staff/worklist") return route.fulfill({ json: [] });
+    if (path === "/api/staff/resolve") {
+      resolves++;
+      expect(route.request().postDataJSON()).toMatchObject({
+        token: "camera-test-pass",
+        stationId: "drinks",
+      });
+      return route.fulfill({
+        json: {
+          units: [
+            { ...units[0], arrived_at: serverTime, reference: order.reference },
+          ],
+          message: "Arrival confirmed. Verify the collector identity.",
+        },
+      });
+    }
+    if (path === "/api/staff/handover") handovers++;
+    return route.fulfill({
+      json: {
+        ...dashboard,
+        actor: { ...actor, kind: "staff" },
+        roles: [
+          {
+            role: "serving",
+            canteen_id: "main",
+            station_id: "drinks",
+            station_name: "Drinks",
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/staff");
+  await page.getByRole("button", { name: "Scan collection QR" }).click();
+  await expect(
+    page.getByText("Arrival confirmed. Verify the collector identity."),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator("label")
+      .filter({ hasText: "Fresh juice × 1" })
+      .locator("input"),
+  ).toBeEnabled();
+  expect(resolves).toBe(1);
+  expect(handovers).toBe(0);
 });

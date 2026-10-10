@@ -29,7 +29,14 @@ test.beforeEach(async ({ page }) => {
 test("automatic install popup is dismissible and manual instructions remain available", async ({
   page,
 }) => {
+  await page.clock.install();
   await page.goto("/menu");
+  await expect(
+    page.getByRole("button", { name: "Install MINT" }),
+  ).toBeVisible();
+  await page.clock.runFor(8000);
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.clock.runFor(22000);
   await expect(
     page.getByRole("dialog", { name: "Add MINT to your home screen" }),
   ).toBeVisible({ timeout: 12000 });
@@ -37,8 +44,10 @@ test("automatic install popup is dismissible and manual instructions remain avai
   await page.getByRole("button", { name: "Keep using the browser" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   expect(
-    await page.evaluate(() => localStorage.getItem("mint-install-dismissed")),
-  ).toBe("1");
+    Number(
+      await page.evaluate(() => localStorage.getItem("mint-install-dismissed")),
+    ),
+  ).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Install MINT" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -139,10 +148,52 @@ test("activity postpones the automatic install popup until the user is idle", as
   await expect(
     page.getByRole("heading", { name: "What sounds good?" }),
   ).toBeVisible();
+  await page.evaluate(() => {
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+    Object.assign(event, {
+      prompt: async () => {},
+      userChoice: new Promise(() => {}),
+    });
+    window.dispatchEvent(event);
+  });
   await page.clock.runFor(7000);
   await page.keyboard.press("Tab");
   await page.clock.runFor(2000);
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.clock.runFor(6000);
   await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("Android Chrome shows actionable installation steps and old dismissal expires", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 412, height: 915 },
+    userAgent:
+      "Mozilla/5.0 (Linux; Android 13; DN2101) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
+  });
+  await context.addInitScript(() =>
+    localStorage.setItem("mint-install-dismissed", "1"),
+  );
+  const page = await context.newPage();
+  await page.clock.install();
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      json: route.request().url().endsWith("catalogue") ? catalogue : me,
+    }),
+  );
+  await page.goto("/menu");
+  await expect(
+    page.getByRole("button", { name: "Install MINT" }),
+  ).toBeVisible();
+  await page.clock.runFor(30000);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByText(/In Chrome, tap/)).toContainText(
+    "Add to home screen → Install",
+  );
+  await page.screenshot({ path: ".local/qa/install-android.png" });
+  await page.getByRole("button", { name: "Keep using the browser" }).click();
+  await page.clock.runFor(30000);
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await context.close();
 });

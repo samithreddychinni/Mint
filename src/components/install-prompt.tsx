@@ -14,6 +14,7 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
   const [prompt, setPrompt] = useState<InstallEvent | null>(null);
   const [installed, setInstalled] = useState(true);
   const [ios, setIos] = useState(false);
+  const [androidChrome, setAndroidChrome] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -41,6 +42,10 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
       );
+      setAndroidChrome(
+        /Android/.test(navigator.userAgent) &&
+          /Chrome\//.test(navigator.userAgent),
+      );
     }, 0);
     window.addEventListener("beforeinstallprompt", ready);
     window.addEventListener("appinstalled", installed);
@@ -58,7 +63,10 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
     let timer: number;
     const show = () => {
       try {
-        if (localStorage.getItem("mint-install-dismissed")) return;
+        const dismissed = Number(
+          localStorage.getItem("mint-install-dismissed"),
+        );
+        if (dismissed > 0 && Date.now() - dismissed < 7 * 86400000) return;
       } catch {
         /* Storage can be unavailable in private browsing. */
       }
@@ -66,7 +74,7 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
     };
     const reset = () => {
       clearTimeout(timer);
-      timer = window.setTimeout(show, 8000);
+      timer = window.setTimeout(show, prompt || ios ? 8000 : 30000);
     };
     reset();
     window.addEventListener("pointerdown", reset);
@@ -76,11 +84,11 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
       window.removeEventListener("pointerdown", reset);
       window.removeEventListener("keydown", reset);
     };
-  }, [enabled, installed]);
+  }, [enabled, installed, prompt, ios]);
 
   const dismiss = () => {
     try {
-      localStorage.setItem("mint-install-dismissed", "1");
+      localStorage.setItem("mint-install-dismissed", String(Date.now()));
     } catch {
       /* The app remains usable without storage. */
     }
@@ -152,6 +160,16 @@ export function InstallPrompt({ enabled }: { enabled: boolean }) {
                 <p>
                   Tap <strong>Share</strong> in Safari, then{" "}
                   <strong>Add to Home Screen</strong>.
+                </p>
+              </>
+            ) : androidChrome ? (
+              <>
+                <Download size={20} />
+                <p>
+                  In Chrome, tap the <strong>⋮ menu</strong>, then{" "}
+                  <strong>Add to home screen</strong> → <strong>Install</strong>
+                  . If Chrome is still preparing installation, keep MINT open
+                  and try again shortly. Use a regular tab, not Incognito.
                 </p>
               </>
             ) : (

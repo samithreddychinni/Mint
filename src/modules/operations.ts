@@ -13,6 +13,7 @@ import {
   type Row,
 } from "./core";
 import { expireTx, cancelUnit } from "./orders";
+import { recordArrival } from "./pickup";
 import { insist } from "../lib/errors";
 export async function resolvePass(
   a: Actor,
@@ -83,6 +84,37 @@ export async function resolvePass(
       );
       const versions = pass.versions as Row;
       units = units.filter((u) => versions[String(u.id)] === u.version);
+      insist(
+        units.length > 0,
+        "PASS_REVOKED",
+        "No outstanding portions remain on this assignment.",
+      );
+      const arrived = await recordArrival(
+        tx,
+        String(pass.order_id),
+        String(pass.collector_id),
+      );
+      units = units.map(
+        (unit) => arrived.find((u) => u.id === unit.id) || unit,
+      );
+      insist(
+        units.every((u) => u.arrived_at),
+        "ARRIVAL_EXPIRED",
+        "The final arrival deadline passed. Refresh the order before collection.",
+      );
+      if (arrived.length)
+        await audit(
+          tx,
+          a,
+          "staff_scan_arrival",
+          String(pass.order_id),
+          "scan-arrival:" + randomUUID(),
+          {
+            collector: pass.collector_id,
+            station,
+            portions: arrived.map((u) => u.id),
+          },
+        );
     }
     insist(
       units.length > 0,
@@ -92,8 +124,8 @@ export async function resolvePass(
     return {
       units,
       message: units.some((u) => !u.arrived_at)
-        ? "Check in through your app before collection. Scanning cannot confirm arrival."
-        : "Verify the collector identity. Confirm only the portions you give to the collector.",
+        ? "A reference lookup cannot confirm arrival. Scan the collector's pickup pass or ask them to check in with location."
+        : "Arrival confirmed. Verify the collector identity. Confirm only the portions you give to the collector.",
     };
   });
 }
@@ -162,7 +194,7 @@ export async function handover(
       insist(
         u.arrived_at,
         "ARRIVAL_REQUIRED",
-        "Check in through your app before collection.",
+        "Scan the collector's pickup pass or ask them to check in with location before collection.",
       );
       insist(
         u.state === "ready" || (u.mode === "ready" && u.state === "pending"),
@@ -228,7 +260,7 @@ export async function preparation(
     insist(
       current.order_state === "confirmed" && current.arrived_at,
       "ARRIVAL_REQUIRED",
-      "Accepted student check-in is required before preparation.",
+      "Arrival by location check-in or pickup-pass scan is required before preparation.",
     );
     insist(
       current.mode === "made",

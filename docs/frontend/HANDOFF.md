@@ -73,7 +73,7 @@ The dimensions, typography, and layouts below are the selected implementation co
 | Ordering | A student chooses Main, IT, or MBA. One cart belongs to one canteen. |
 | Checkout | The server validates prices, reserves quantities, and verifies payment. |
 | Receipt | Show a confirmed receipt only after the server confirms payment. |
-| Arrival | Request a fresh phone location when the student checks in. |
+| Arrival | Accept fresh student geolocation or an authenticated staff scan of a valid pickup pass. |
 | Arrival deadline | Show the 25-minute target and final deadline after five minutes of grace. |
 | Expiry | Eligible unarrived portions become the payer's same-canteen credit. They do not create a bank refund. |
 | Pickup | Staff scan a pass, inspect permitted portions, and confirm only portions physically handed over. |
@@ -85,7 +85,7 @@ The dimensions, typography, and layouts below are the selected implementation co
 
 Do not describe online ordering as priority in the serving queue. It skips the billing queue.
 
-Do not allow staff to override arrival or accept a location on the student's behalf.
+Arrival is recorded by either accepted student geolocation or a valid pickup-pass scan by an assigned serving account. Do not add a separate staff arrival-confirmation action or accept a location on the student's behalf. A reference/email lookup alone must not record arrival.
 
 Do not infer dietary, allergy, opening-hour, or preparation-time claims from item names.
 
@@ -367,7 +367,7 @@ The scan flow is:
 5. Confirm handover.
 6. Select `Next pickup` immediately.
 
-Scanning alone must not confirm arrival or handover.
+Scanning a valid pass automatically records arrival for that collector's outstanding portions in the same order and canteen, including other serving counters. It must not record arrival for friends or confirm handover. Show order details immediately after scanning. Repeated scans must not extend collection deadlines. Expired/revoked passes and unauthorized or wrong-counter scans must not record arrival.
 
 Keep unfinished portions in the queue with their existing tokens.
 
@@ -415,7 +415,7 @@ Keep credit activity in its own panel. Do not describe credit as bank money or t
 
 Use the existing `InstallPrompt` component as the starting point.
 
-- Show an installation popup after eight idle seconds on an authenticated Menu or Account screen.
+- Show an installation popup after eight idle seconds on an authenticated Menu or Account screen when the native prompt is available or iOS instructions apply. Otherwise, wait 30 idle seconds to give Chrome time to become installable.
 - Do not open the popup during payment, scanning, check-in, or form submission.
 - Keep a manual `Install MINT` action available when installation remains possible.
 - Do not show installation controls in standalone mode.
@@ -423,7 +423,8 @@ Use the existing `InstallPrompt` component as the starting point.
 - If no native prompt exists, show the appropriate browser instructions.
 - On iOS, show Safari Share → Add to Home Screen instructions.
 - Let the user dismiss the popup and continue in the browser.
-- Remember dismissal using the existing non-sensitive preference key.
+- Remember dismissal for seven days using the existing non-sensitive preference key and a timestamp. Treat the old permanent `1` value as expired.
+- On Android Chrome, explain ⋮ → Add to home screen → Install, and the regular-tab requirement. Do not imply the app can force a native prompt before Chrome offers one.
 - Keep native dialog focus behaviour and Escape dismissal.
 - Close the dialog after installation or a transition into standalone mode.
 

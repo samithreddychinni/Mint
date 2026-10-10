@@ -39,13 +39,13 @@ Connected browser checks consume labelled demo credit and stock. Confirm the bro
 
 ## Release limits
 
-The currently available Razorpay credentials are test keys. Existing canteen locations and menus are demo configuration. A public deployment does not make these live campus settings.
+The currently available Razorpay credentials are test keys, and menus remain demo data. Canteen centres now use the user's supplied campus map pins. Their radii and GPS tolerance need physical verification before campus launch.
 
 Render's free plan can sleep and has resource limits. An always-on paid service requires an agreed spending limit. A real campus launch also needs surveyed geofences, live payment configuration, and physical-device verification.
 
 ## Deployment record
 
-Application code commit: `02df618`. Vercel deployment: `dpl_AgWgEsSoA4dXdHe1m3QaByGLfRYL`. Both hosts have completed builds, and the stable Vercel alias forwards API requests to Render.
+Initial application code commit: `02df618`. Initial Vercel deployment: `dpl_AgWgEsSoA4dXdHe1m3QaByGLfRYL`. Both hosts have completed builds, and the stable Vercel alias forwards API requests to Render. `/api/health` reports the current backend revision.
 
 Verified: typecheck, lint, production build, API rewrite test, secure HttpOnly session cookies through the proxy, student/serving/manager roles, assigned-canteen stock controls, same-value stock update and idempotent retry, CSRF rejection, logout, signed worker authentication, scheduled worker heartbeat, and actual university-email OTP delivery and verification. The production dependency audit reported zero known vulnerabilities; development tooling still reports nine advisories.
 
@@ -54,3 +54,19 @@ After the session-pooler rollout, all 21 isolated frontend browser checks passed
 Merchant-origin webhook delivery remains unverified: the user confirmed the webhook is enabled, but no provider event for the fresh payment reached `mint.provider_events`. Callback verification and scheduled reconciliation worked. Check the merchant Test Mode delivery log for the HTTP status; do not infer delivery from a confirmed payment.
 
 Physical camera/GPS, installed Android/iOS behavior, sustained load, closed-checkout recovery on a phone, live payment credentials, and surveyed campus configuration remain outside the verified results. Runtime values were inadvertently included in a private diagnostic tool read during deployment; they were not committed. Rotate affected runtime/payment/webhook/worker secrets before a real campus launch.
+
+## Arrival and installation correction
+
+A valid pickup-pass scan by an assigned serving account now records arrival automatically, then shows the permitted portions. Arrival applies to that collector's outstanding portions across counters in the same order and canteen. It excludes friends' assignments. Repeat scans do not extend collection deadlines, and expired/revoked/wrong-counter passes cannot record arrival. Handover remains a separate confirmation of the portions actually given. A reference/email lookup alone does not establish arrival.
+
+The production geofences replace synthetic coordinates with the user-provided centres:
+
+| Canteen | Latitude | Longitude | Radius |
+|---|---|---|---|
+| Main | 10.9001514 | 76.9036917 | 65 m |
+| IT | 10.9049225 | 76.8980684 | 55 m |
+| MBA / ASB | 10.9046257 | 76.9022447 | 75 m |
+
+All three retain a 25 m maximum reported GPS accuracy. Fresh foreground location, the server clock, and the uncertainty circle still determine check-in. These map pins are configured and read back through the public API; they are not a physical GPS survey.
+
+Chrome's native installation event depends on browser eligibility and engagement. The automatic popup waits for that event or 30 idle seconds, then provides Android Chrome menu instructions when native installation is unavailable. Dismissal lasts seven days. The old permanent dismissal is expired. See [Chrome install criteria](https://web.dev/articles/install-criteria). A simulated native event verifies UI handling, not installation on a physical phone.
