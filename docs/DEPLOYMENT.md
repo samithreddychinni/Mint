@@ -134,3 +134,23 @@ Verification: `python3 -m unittest discover -s tests -p 'test_keep_render_warm.p
 ## Campus menu release, 11 October 2026
 
 `ea3438a` runs on Render and Vercel deployment `dpl_2AMekZgBjivVWNjDC4dXv77shiqF`, aliased to `https://mint-campus-demo.vercel.app`. Migration `0006_young_toxin` is applied. The 233-item menu was imported atomically after the new backend became healthy. Old paid portion snapshots and pickup passes are retained. See `docs/frontend/CAMPUS_MENU.md` for exact prices, stock assumptions, idempotency checks and verification limits. Re-import is not a stock replenishment command.
+
+## Student order limits release, 11 October 2026
+
+Feature commit `548378dba04ba21dac13b4263939b1b0e587404a` is healthy on Render and through the public Vercel API. Vercel production deployment is `dpl_6oSL8Y3qRBSVQ24ySffoHuyyXyy2`, aliased to `https://mint-campus-demo.vercel.app`. Both health endpoints returned HTTP 200 and the feature revision.
+
+Migration `0007_clumsy_killer_shrike` is applied. It adds bounded item groups/caps, portion group snapshots and an audit lookup index. All 233 current items match their source classifications. A final transition backfill found zero portions needing correction. Opening inventory remains 233 batches / 9,643 portions; the 77 prior paid portion names, prices, item/counter/batch references remain intact. All temporary verification canteens were removed. No menu reimport, balance reset or delivery change was performed.
+
+The exact policy and private pickup-reliability rules are in `docs/frontend/ORDER_LIMITS_PROPOSAL.md`. Standard / reliable / established allow 2 / 2 / 3 active orders and 6 / 8 / 10 portions per order across the campus. Rolling meal, drink, same-item and outstanding caps also apply. A qualifying no-show prevents that campus day from earning reputation. Checkout and payment confirmation use the same student-before-canteen lock. A late capture cannot bypass capacity; failed re-reservation uses the existing audited financial-resolution path.
+
+Verification:
+
+- Production build, TypeScript and lint passed. Five pure policy/menu checks passed.
+- Seventeen distinct focused workflow checks passed, with targeted reruns after the reputation-day and payment-lock changes. They cover shared pickup and positive recipient attribution, manager stale cap edits/scope, protected stock, twelve simultaneous students competing for five scarce portions, multi-item rollback, expiry/credit idempotency, cancellation, captured-payment retries, unavailable late payment, sales summaries, cross-canteen quotas, rolling meal/bread/scarcity caps, reliability/review, checkout pauses, total/outstanding/drink caps and late-capture capacity. The complete workflow suite was not rerun.
+- All 31 isolated browser checks passed locally and against the public host. Four connected public checks passed for student allowances/session/CSRF/offline behaviour, serving scope, manager stock scope and the full campus catalogue. Mobile menu and manager screenshots were inspected.
+- An authenticated seven-portion production checkout returned HTTP 409 / `ORDER_QUANTITY_LIMIT`. Public account data exposes the student's allowance; staff account data does not expose a student's reputation. Every live item returned the expected group/cap metadata.
+- Sampled policy-query execution was approximately 4 ms on demo history. Three warm public samples were account 954–1,359 ms and order details 799–1,121 ms. These samples overlap normal verification traffic and are not a matched benchmark, physical-phone timing or load test.
+- The current deployment file inventory contains no private credential paths. `npm audit --omit=dev` reports zero runtime vulnerabilities. The build's nine dependency warnings concern development dependencies; dependency upgrades were not included.
+- Supabase security advisors report the same three pre-existing platform warnings: anonymous/authenticated execution of `public.rls_auto_enable()` and disabled leaked-password protection. This change adds no public database policies or grants.
+
+Physical Android interaction, actual long-term student history and large simultaneous-user load remain unverified. Multiple verified students can still coordinate purchases. No unlimited group-order override or delivery feature was added.
