@@ -1,0 +1,1 @@
+ALTER TABLE "mint"."orders" ADD COLUMN "next_payment_check_at" timestamp with time zone DEFAULT now() NOT NULL;

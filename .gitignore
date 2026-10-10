@@ -1,0 +1,29 @@
+# Local credentials and private project notes
+.env*
+!.env.example
+.local/
+*.pem
+*.key
+# Downloaded Razorpay credentials
+rzp-*-key.csv
+
+# Local platform state
+.vercel/
+supabase/.temp/
+
+# Generated application output
+node_modules/
+.next/
+out/
+coverage/
+*.log
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+localnotes/
+
+# Local tools and downloaded source certificate
+.agents/
+skills-lock.json
+prod-ca-2021.crt

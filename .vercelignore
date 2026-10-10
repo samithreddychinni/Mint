@@ -1,0 +1,17 @@
+.git
+.agents
+.env*
+.local
+node_modules
+.next
+tests
+scripts
+drizzle
+prod-ca-2021.crt
+skills-lock.json
+*.log
+*.key
+*.pem
+*.tsbuildinfo
+
+localnotes

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791638951862,
+      "tag": "0000_green_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791638981313,
+      "tag": "0001_auth_boundary",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791640223166,
+      "tag": "0002_runtime_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791641084860,
+      "tag": "0003_charming_silverclaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791645329022,
+      "tag": "0004_hosted_worker",
+      "breakpoints": true
+    }
+  ]
+}
