@@ -156,6 +156,32 @@ test("manager mobile interface keeps stock updates scoped to assigned canteens",
   page,
 }) => {
   await login(page, "main.manager@staff.demo.invalid");
+  await expect(
+    page.getByRole("heading", { name: "A good day, in numbers." }),
+  ).toBeVisible();
+  const panel = page.getByRole("region", { name: "Online sales dashboard" });
+  await expect(
+    panel.getByText("PAID ORDER VALUE", { exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({
+    path: ".local/manager-dashboard-live.png",
+    fullPage: true,
+  });
+  await panel.getByRole("button", { name: "Last 7 days" }).click();
+  await expect(
+    panel.getByRole("button", { name: "Last 7 days" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    panel.getByText("Campus favourites", { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await noOverflow(page);
+  await page.screenshot({
+    path: ".local/manager-dashboard-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Stock", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Available stock" }),

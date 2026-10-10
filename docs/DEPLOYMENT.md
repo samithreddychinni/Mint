@@ -85,4 +85,14 @@ The user clarified that their location check was from an academic block, outside
 
 The release adds independent order-detail loading, parallel database reads, a compact manager sales endpoint and the manager Dashboard tab. Dashboard reports online orders only and uses India-time day boundaries. Existing stock editing, collector rights, geofence and payment rules remain intact. No schema migration, hosting-plan change or delivery implementation is required.
 
-The baseline warm API measurements were catalogue 428–637 ms, account 1365–1543 ms and order detail 1658–1745 ms across three samples each. Previous navigation waited for these sequentially. Local verification passed: production build, TypeScript, lint, 28 isolated browser checks, and four focused database workflow checks. The expiry check also covers overdue payment holds. Post-release measurements and live verification will be recorded after deployment. Free Render cold starts are outside this baseline.
+The baseline warm API measurements were catalogue 428–637 ms, account 1365–1543 ms and order detail 1658–1745 ms across three samples each. Previous navigation waited for these sequentially. Local verification passed: production build, TypeScript, lint, 28 isolated browser checks, and four focused database workflow checks. The expiry check also covers overdue payment holds. Feature release `13c0e6b` is live on Render and Vercel deployment `dpl_2YiwSjC5yWiaDS7SV8D3iVdx1pA7`. Both health endpoints returned this release. All 28 isolated browser checks passed on the public host; the connected serving and manager checks passed too, including the actual manager dashboard at phone and desktop widths. Database security advisors and the production dependency audit reported zero findings.
+
+Three warm public-host samples after release:
+
+| Endpoint | Before (ms) | After (ms) | Median before → after |
+| --- | --- | --- | --- |
+| Catalogue | 428–637 | 269–296 | 434 → 273 ms |
+| Account | 1365–1543 | 948–1242 | 1410 → 1010 ms |
+| Order detail | 1658–1745 | 798–841 | 1675 → 828 ms |
+
+Order API median latency fell by approximately 51%. Order navigation also no longer waits for catalogue and account reads before requesting details. These are three-sample warm measurements from the test client, with demo records; they are not a load test or an Android timing guarantee. Free Render cold starts are outside this baseline.
