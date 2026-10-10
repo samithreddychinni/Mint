@@ -1,0 +1,2332 @@
+[
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Butter Naan",
+    "price": 3500,
+    "station": "Main course",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Butter Roti",
+    "price": 3000,
+    "station": "Main course",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Rumali Roti",
+    "price": 3000,
+    "station": "Main course",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Full",
+    "price": 51000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Half",
+    "price": 26000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Quarter",
+    "price": 14500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Today's special",
+    "name": "Tandoori Naan",
+    "price": 3500,
+    "station": "Main course",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Batura",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 100,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Boiled Egg",
+    "price": 1200,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Chapathi",
+    "price": 1500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 100,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Chicken Biriyani K.L",
+    "price": 17000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 80,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Chicken Biriyani T.N",
+    "price": 18000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 80,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Curd Rice",
+    "price": 3500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Egg Biriyani",
+    "price": 9000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Egg Dosa",
+    "price": 4500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Egg Roast",
+    "price": 6000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Ghee Podi",
+    "price": 5500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Ghee Rice",
+    "price": 6000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Ghee Roast",
+    "price": 5000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Masala Roast",
+    "price": 6500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Mushroom Biriyani",
+    "price": 12000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Parotta",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 100,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Paneer Biriyani",
+    "price": 11000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Plain Roast",
+    "price": 4500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Podi Roast",
+    "price": 6000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Rava Roast",
+    "price": 6500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Set Dosa",
+    "price": 4000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Main course",
+    "name": "Veg Biriyani",
+    "price": 6500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Chana Masala",
+    "price": 4500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Chicken Curry",
+    "price": 13000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Double Egg Masala",
+    "price": 7000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 40,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Egg Roast Gravy",
+    "price": 6500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 40,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Mushroom Gravy",
+    "price": 9000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 40,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Curries",
+    "name": "Paneer Butter Masala",
+    "price": 9500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Dil Puff",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 45,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Egg Puff",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Pastries",
+    "price": 6000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Pringles (small)",
+    "price": 5500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Pringles (large)",
+    "price": 11000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Rasmalai",
+    "price": 4000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Sweet Roll",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 30,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Veg Puff",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 45,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Veg Samosa",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 45,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "Main",
+    "category": "Bakes & snacks",
+    "name": "Viva Roll",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 30,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Black Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Black Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Boost",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Bournvita",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Chocos",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Filter Coffee",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 150,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Horlicks",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Hot Badam Milk",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Hot Milk",
+    "price": 1200,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Milky Cornflakes",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Sukku Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 35,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Tata Black Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 60,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Tata Coffee",
+    "price": 2000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 150,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Tata Tea",
+    "price": 1000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 150,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Hot drinks",
+    "name": "Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 150,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Baskin Robbins Brownie Cupcake",
+    "price": 14000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Baskin Robbins Butter Scotch",
+    "price": 8500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Baskin Robbins Hazelnuts",
+    "price": 9000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Blackcurrant Cone",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Butterscotch Cone",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Chocobar Stick",
+    "price": 2000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Cookies N Cream Baskin Robbins",
+    "price": 9000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Mango Cone",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Milky Mist Butterscotch",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Milky Mist Vanilla Sandwich",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Milkymist Capella Duet Bar",
+    "price": 6000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Ice creams",
+    "name": "Pistachio Caramel",
+    "price": 9000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Apple Milkshake",
+    "price": 8000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Badam Milk",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Butter Milk",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 90,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Dragon Fruit Milkshake",
+    "price": 10000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 25,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Grape Juice",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Lime Juice",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 90,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Mosambi Juice",
+    "price": 5500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Muskmelon Juice",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Orange Juice",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Pineapple Juice",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Pista Milk",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 45,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Rose Milk",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 70,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "Main",
+    "category": "Juices & milkshakes",
+    "name": "Watermelon Juice",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 90,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Batura",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 80,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Chapathi (1)",
+    "price": 1500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 80,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Chicken Fried Rice",
+    "price": 13000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Egg Biriyani",
+    "price": 10000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Egg Dosa",
+    "price": 4500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Egg Fried Rice",
+    "price": 10000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Egg Roast",
+    "price": 6000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Fried Chicken Biriyani",
+    "price": 19000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 64,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Ghee Podi",
+    "price": 5500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Ghee Rice",
+    "price": 6000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Ghee Roast",
+    "price": 5000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "KL Chicken Biriyani",
+    "price": 17000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 64,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Masala Roast",
+    "price": 6500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Mushroom Biriyani",
+    "price": 12000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Parota",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 80,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Paneer Biriyani",
+    "price": 13000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Plain Roast",
+    "price": 4500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Podi Roast",
+    "price": 6000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Rava Roast",
+    "price": 6500,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Set Dosa",
+    "price": 4000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "TN Chicken Biriyani",
+    "price": 18000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 64,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Main course",
+    "name": "Veg Biriyani",
+    "price": 9000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Aloo Masala",
+    "price": 3500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 32,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Chicken Curry",
+    "price": 13000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Egg Masala Curry",
+    "price": 7000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 32,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Mushroom Gravy",
+    "price": 7000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 32,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Paneer Butter Masala",
+    "price": 9000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Curries",
+    "name": "Veg Stew",
+    "price": 3500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 32,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Black Forest - Cool Cake",
+    "price": 8000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Choco Pastry",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Cream Bun",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 24,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Cutlet",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Dill Puff",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Egg Puff",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Honey Cake",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Pringles",
+    "price": 11000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Sambar Vada",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Sweet Roll",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 24,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Ullundu Vada",
+    "price": 1500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Veg Puff",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Bakes & snacks",
+    "name": "Veg Samosa",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Full",
+    "price": 51000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 10,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Half",
+    "price": 26000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 16,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Today's special",
+    "name": "Tandoori Chicken Quarter",
+    "price": 14500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Black Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Black Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Boost",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Bournvita",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Chocos",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Coffee",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 120,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Cornflakes",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Horlicks",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Hot Badam Milk",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Hot Milk",
+    "price": 1200,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Sukku Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 28,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Hot drinks",
+    "name": "Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 120,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Apple Juice",
+    "price": 7500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Badam Milk",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Butter Milk",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 72,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Curd",
+    "price": 1200,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Grape Juice",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 56,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Guava Juice",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Guava Milkshake",
+    "price": 9000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Lime Juice",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 72,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Milky Mist Yogurt",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Mosambi Juice",
+    "price": 5500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Musk Melon Juice",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Orange Juice",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Papaya Juice",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Pineapple Juice",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Sapota Juice",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Soda Sarbath",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Juices & milkshakes",
+    "name": "Water Melon",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 72,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Black Current Cone",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Capella Bar Vanilla",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Cassatta",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Chocobar",
+    "price": 2000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Chocolate Capella Cone",
+    "price": 5000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Chocolate Cone",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Honey Nut Crunch Baskin Robbins",
+    "price": 9000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 10,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Mango Cone",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Milky Mist Crunchy Chocobar Cone",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Milky Mist Vanilla Bar Stick",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Nutty Bar",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Red Velvet",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Strawberry Cone",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Strawberry Cup",
+    "price": 2000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Ice creams",
+    "name": "Triple Bar",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 20,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Egg items",
+    "name": "Boiled Egg",
+    "price": 1200,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 48,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "IT",
+    "category": "Tiffins",
+    "name": "Dosa",
+    "price": 3000,
+    "station": "Tiffin",
+    "mode": "made",
+    "quantity": 56,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "IT",
+    "category": "Tiffins",
+    "name": "Idiyappam",
+    "price": 3500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "IT",
+    "category": "Tiffins",
+    "name": "Idly",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "IT",
+    "category": "Tiffins",
+    "name": "Pongal",
+    "price": 4000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "IT",
+    "category": "Tiffins",
+    "name": "Poori",
+    "price": 4000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 56,
+    "estimatedPrice": true
+  },
+  {
+    "canteen": "MBA",
+    "category": "Main course",
+    "name": "Veg Fried Rice",
+    "price": 6000,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 42,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Curries",
+    "name": "Veg Kuruma",
+    "price": 5500,
+    "station": "Main course",
+    "mode": "ready",
+    "quantity": 24,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Bannut Roll",
+    "price": 3000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Burger",
+    "price": 6000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Chess Cake",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 9,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Chilly Bajji",
+    "price": 1800,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Choco Roll",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Coconut Bun",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Coconut Cookies",
+    "price": 1000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Cream Bun",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Honey Cake",
+    "price": 2500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 9,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Masala Bonda",
+    "price": 1500,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Mixture",
+    "price": 1000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Bakes & snacks",
+    "name": "Sweet Roll",
+    "price": 2000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 18,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Sweets & puddings",
+    "name": "Chandrakala",
+    "price": 3000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 12,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Sweets & puddings",
+    "name": "Ghee Soan Papdi",
+    "price": 16300,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Sweets & puddings",
+    "name": "Gulab Jamun Tin",
+    "price": 15000,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Sweets & puddings",
+    "name": "Rasagula Tin",
+    "price": 13100,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Sweets & puddings",
+    "name": "Swechha Soan Papdi",
+    "price": 15400,
+    "station": "Tiffin",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Black Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Black Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Boost",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Bournvita",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Chocos",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Coffee",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 90,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Cornflakes",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Horlicks",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Hot Badam Milk",
+    "price": 4000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Hot Milk",
+    "price": 1200,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 36,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Sukku Coffee",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 21,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Hot drinks",
+    "name": "Tea",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 90,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Butter Milk",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 54,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Grape Juice",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 42,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Guava Juice",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 27,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Lime Juice",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 54,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Musk Melon Juice",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 27,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Papaya Juice",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 27,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Rose Milk",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 42,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Juices & milkshakes",
+    "name": "Water Melon",
+    "price": 3000,
+    "station": "Drinks",
+    "mode": "made",
+    "quantity": 54,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Almond Caramel Stick",
+    "price": 8500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "American Sandwich Stick",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Blackcurrant Cone",
+    "price": 3500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Butterscotch Cone",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Butterscotch Cone B.R",
+    "price": 8500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Chocolate Cup",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Classic Vanilla B.R",
+    "price": 6500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Cotton Candy B.R",
+    "price": 8000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 8,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Guava Chilli Sarbet",
+    "price": 1500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Magic Bar",
+    "price": 2500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Malai Kulfi",
+    "price": 1000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Mango Candy",
+    "price": 1000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Pista Badam Cone",
+    "price": 4500,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Raspberry Candy",
+    "price": 1000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Vanilla Cone",
+    "price": 2000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  },
+  {
+    "canteen": "MBA",
+    "category": "Ice creams",
+    "name": "Vanilla Cup",
+    "price": 1000,
+    "station": "Drinks",
+    "mode": "ready",
+    "quantity": 15,
+    "estimatedPrice": false
+  }
+]

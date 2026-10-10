@@ -1222,3 +1222,36 @@ test("fast order reads still expire overdue portions once and hide payer-only re
     "expired",
   );
 });
+
+test("archived menu items reject new purchases and stock edits without breaking paid pickup", async () => {
+  const f = await fixture();
+  const order = await confirmed(f);
+  await atomic(f.c, async (tx) => {
+    await tx.execute(
+      sql`update mint.items set archived=true where id=${f.item}`,
+    );
+  });
+  await assert.rejects(hold(f.payer, cart(f)), safeError("STOCK_UNAVAILABLE"));
+  await assert.rejects(
+    manage(f.manager, f.c, "stock", {
+      itemId: f.item,
+      quantity: 50,
+      expectedAvailable: 19,
+      key: randomUUID(),
+      reason: "Archived stock probe",
+    }),
+    safeError("NOT_FOUND"),
+  );
+  const pass = (await passes(f.payer, String(order.id)))[0];
+  const scan = await resolvePass(f.staff, pass.token, f.s);
+  assert.equal(scan.units.length, 1);
+  assert.equal(scan.units[0].name, "Fixture rice");
+  await handover(
+    f.staff,
+    f.s,
+    [{ id: String(scan.units[0].id), version: Number(scan.units[0].version) }],
+    randomUUID(),
+  );
+  assert.equal((await portions(order.id))[0].state, "collected");
+  assert.equal((await orderView(f.payer, String(order.id))).order.total, 500);
+});

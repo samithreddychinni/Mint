@@ -80,6 +80,8 @@ export const items = mint.table(
     price: integer("price").notNull(),
     mode: text("mode").notNull(),
     note: text("note").notNull().default(""),
+    category: text("category").notNull().default(""),
+    archived: boolean("archived").notNull().default(false),
     defaultQuantity: integer("default_quantity").notNull().default(0),
     paused: boolean("paused").notNull().default(false),
   },

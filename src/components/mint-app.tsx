@@ -59,6 +59,7 @@ type Station = {
   paused: boolean;
 };
 type Item = {
+  category?: string;
   id: string;
   name: string;
   price: number;
@@ -263,6 +264,7 @@ export function MintApp() {
   >({});
   const [readyOnly, setReadyOnly] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
+  const [menuCategory, setMenuCategory] = useState("");
   const [credit, setCredit] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [station, setStation] = useState("");
@@ -784,6 +786,7 @@ export function MintApp() {
     setCredit(false);
     setPriceChanged(false);
     setMenuSearch("");
+    setMenuCategory("");
     checkoutKey.current = "";
   };
   const logout = () =>
@@ -813,6 +816,7 @@ export function MintApp() {
       setCredit(false);
       setPriceChanged(false);
       setMenuSearch("");
+      setMenuCategory("");
       checkoutKey.current = "";
       handoverKey.current = "";
       mutationKeys.clear();
@@ -829,12 +833,37 @@ export function MintApp() {
         ["pending", "preparing", "ready"].includes(u.state),
     ) || [];
   const disabled = busy || !online;
-  const filteredMenu = menus.filter(
+  const categories = [
+    ...new Set(menus.map((i) => i.category || i.station_name)),
+  ].sort();
+  const selectedCategory = categories.includes(menuCategory)
+    ? menuCategory
+    : "";
+  const searchedMenu = menus.filter(
     (i) =>
-      (!readyOnly || i.mode === "ready") &&
-      `${i.name} ${i.station_name}`
+      (!selectedCategory ||
+        (i.category || i.station_name) === selectedCategory) &&
+      `${i.name} ${i.category || ""} ${i.station_name}`
         .toLowerCase()
         .includes(menuSearch.trim().toLowerCase()),
+  );
+  const filteredMenu = searchedMenu.filter(
+    (i) => !readyOnly || i.mode === "ready",
+  );
+  const categorySelect = (
+    <select
+      className="menu-category"
+      aria-label="Menu category"
+      value={selectedCategory}
+      onChange={(e) => setMenuCategory(e.target.value)}
+    >
+      <option value="">All categories</option>
+      {categories.map((category) => (
+        <option key={category} value={category}>
+          {category}
+        </option>
+      ))}
+    </select>
   );
   const activeOrders = (me?.orders || []).filter(
     (o) => o.state === "confirmed" && !isClosed(o.fulfillment || []),
@@ -1250,6 +1279,10 @@ export function MintApp() {
                       />
                       {c?.name} ·{" "}
                       {c?.paused ? "Ordering paused" : "Accepting orders"}
+                      <span className="sr-only">
+                        {" "}
+                        · Updated {fresh || "just now"}
+                      </span>
                     </p>
                   </div>
                   <div className="menu-search">
@@ -1276,9 +1309,7 @@ export function MintApp() {
                     <Clock size={15} />
                     Ready now
                   </Button>
-                  <span className="freshness">
-                    Updated {fresh || "just now"}
-                  </span>
+                  {categorySelect}
                 </div>
                 {!catalogue.serverTime ? (
                   <div className="empty-state">Loading the menu…</div>
@@ -1313,7 +1344,9 @@ export function MintApp() {
                             </span>
                           </div>
                           <div className="food-info">
-                            <p className="item-counter">{item.station_name}</p>
+                            <p className="item-counter">
+                              {item.category || item.station_name}
+                            </p>
                             <h3>{item.name}</h3>
                             {item.note &&
                               !/demo|synthetic/i.test(item.note) && (
@@ -2723,7 +2756,19 @@ export function MintApp() {
                         text="Your configured menu will appear here."
                       />
                     )}
-                    {menus.map((item) => (
+                    <div className="stock-filters">
+                      <Input
+                        aria-label="Search stock"
+                        placeholder="Find an item"
+                        value={menuSearch}
+                        onChange={(e) => setMenuSearch(e.target.value)}
+                      />
+                      {categorySelect}
+                    </div>
+                    {menus.length > 0 && searchedMenu.length === 0 && (
+                      <p role="status">No matching items.</p>
+                    )}
+                    {searchedMenu.map((item) => (
                       <StockEditor
                         key={`${canteen}:${item.id}`}
                         item={item}
@@ -2892,6 +2937,7 @@ function StockEditor({
         <div>
           <h2>{item.name}</h2>
           <p className="help-text">
+            {item.category ? `${item.category} · ` : ""}
             {item.station_name} · {money(item.price)} ·{" "}
             {item.paused ? "Unavailable" : "On the menu"}
           </p>

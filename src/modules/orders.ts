@@ -181,7 +181,7 @@ export async function hold(a: Actor, cart: Cart) {
         sql`select i.*,s.paused station_paused,(select coalesce(sum(total-held-committed-waste),0) from mint.batches where item_id=i.id)::int available from mint.items i join mint.stations s on s.id=i.station_id where i.id=${line.itemId} and i.canteen_id=${cart.canteenId}`,
       );
       insist(
-        item && !item.paused && !item.station_paused,
+        item && !item.archived && !item.paused && !item.station_paused,
         "STOCK_UNAVAILABLE",
         "This item is unavailable.",
       );

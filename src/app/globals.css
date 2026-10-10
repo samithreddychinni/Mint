@@ -503,6 +503,35 @@ button[data-variant="outline"] {
   padding: 0 16px;
   border-radius: 24px;
 }
+.menu-category {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 220px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 8px;
+  border: 1px solid #e8d8de;
+  border-radius: 12px;
+  background: #fffdfb;
+  font-size: 13px;
+}
+.stock-filters {
+  display: flex;
+  gap: 12px;
+}
+.stock-filters input {
+  flex: 1;
+  min-width: 0;
+}
+.stock-filters .menu-category {
+  max-width: 45%;
+}
+@media (max-width: 390px) {
+  .menu-filters button[data-slot="button"] {
+    padding-inline: 8px;
+  }
+}
 .freshness {
   margin-left: auto;
   color: var(--muted-foreground);

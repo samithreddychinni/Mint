@@ -333,7 +333,7 @@ export async function cashierSale(
     )) {
       const item = await one(
         tx,
-        sql`select * from mint.items where id=${l.itemId} and canteen_id=${canteen}`,
+        sql`select * from mint.items where id=${l.itemId} and canteen_id=${canteen} and not archived`,
       );
       insist(item, "NOT_FOUND", "Item not found.");
       let remaining = l.quantity;
@@ -406,7 +406,7 @@ export async function manage(
       );
       const item = await one(
         tx,
-        sql`select id from mint.items where id=${input.itemId} and canteen_id=${canteen}`,
+        sql`select id from mint.items where id=${input.itemId} and canteen_id=${canteen} and not archived`,
       );
       insist(item, "NOT_FOUND", "Item not found in this canteen.", 404);
       await expireTx(tx, canteen);
@@ -449,7 +449,7 @@ export async function manage(
     } else if (action === "item-settings") {
       const item = await one(
         tx,
-        sql`select * from mint.items where id=${input.itemId} and canteen_id=${canteen} for update`,
+        sql`select * from mint.items where id=${input.itemId} and canteen_id=${canteen} and not archived for update`,
       );
       insist(item, "NOT_FOUND", "Item not found in this canteen.", 404);
       insist(
@@ -464,12 +464,12 @@ export async function manage(
         "The item changed while you were editing. Close the editor and reopen it to review the latest details.",
       );
       await tx.execute(
-        sql`update mint.items set name=${input.name},price=${input.price},note=${input.note},paused=${input.paused},default_quantity=${input.defaultQuantity} where id=${input.itemId} and canteen_id=${canteen}`,
+        sql`update mint.items set name=${input.name},price=${input.price},note=${input.note},paused=${input.paused},default_quantity=${input.defaultQuantity} where id=${input.itemId} and canteen_id=${canteen} and not archived`,
       );
     } else if (action === "pause") {
       if (input.itemId)
         await tx.execute(
-          sql`update mint.items set paused=${input.paused} where id=${input.itemId} and canteen_id=${canteen}`,
+          sql`update mint.items set paused=${input.paused} where id=${input.itemId} and canteen_id=${canteen} and not archived`,
         );
       else if (input.stationId)
         await tx.execute(
@@ -482,7 +482,7 @@ export async function manage(
     } else if (action === "batch") {
       const item = await one(
         tx,
-        sql`select * from mint.items where id=${input.itemId} and canteen_id=${canteen}`,
+        sql`select * from mint.items where id=${input.itemId} and canteen_id=${canteen} and not archived`,
       );
       insist(item, "NOT_FOUND", "Item not found.");
       const batch = await one(
@@ -521,7 +521,7 @@ export async function manage(
         sql`select * from mint.items where id=${input.itemId}`,
       );
       insist(
-        !old || old.canteen_id === canteen,
+        !old || (old.canteen_id === canteen && !old.archived),
         "FORBIDDEN",
         "Item belongs to another canteen.",
         403,
@@ -536,7 +536,7 @@ export async function manage(
       );
     } else if (action === "price") {
       await tx.execute(
-        sql`update mint.items set price=${input.price} where id=${input.itemId} and canteen_id=${canteen}`,
+        sql`update mint.items set price=${input.price} where id=${input.itemId} and canteen_id=${canteen} and not archived`,
       );
     } else if (action === "geofence") {
       await tx.execute(

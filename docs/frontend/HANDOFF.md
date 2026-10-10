@@ -751,3 +751,11 @@ Verification: production build, TypeScript, lint and 29 isolated browser checks,
 Delivery and trust scores are future scope only. The user explicitly deferred them. See `CAMPUS_DELIVERY_PROPOSAL.md` for the buyer-scans-delivery-QR rule, proposed abuse controls and unresolved policies. Do not add delivery code, fees, schema changes or trust scores without fresh approval.
 
 The optional Python health monitor is documented in `docs/DEPLOYMENT.md`. It is not running; the existing Supabase worker remains the scheduled keepalive.
+
+## Full campus menu, 11 October 2026
+
+`data/campus-menu.json` replaces the seed menu with 233 supplied items: Main 84, IT 94, MBA 55. Prices are per canteen. Eleven missing prices were filled; Main Pringles is split into small/large. The user requested higher opening stock for popular main courses and drinks and lower stock for less popular items. Exact prices, opening quantities, defaults, preparation modes and assigned counters are in the JSON. See `CAMPUS_MENU.md` for estimates and import procedure.
+
+Category filtering works alongside search/readiness in the student menu. Stock has category and name filters for managers. Switching canteens resets filters. Existing counter assignments are reused. Item categories appear on food cards; pickup passes still identify the actual serving counter.
+
+Migration `0006_young_toxin` adds `category` and `archived` to items. Replaced seed items are archived and excluded from catalogue and dashboard availability. New checkout and manager stock edits reject archived items. Existing units retain paid names, prices, preparation states, batches and passes. The importer uses the normal canteen transaction locks and stable batch IDs, so retries cannot replenish consumed food.

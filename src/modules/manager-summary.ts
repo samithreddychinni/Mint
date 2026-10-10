@@ -20,7 +20,7 @@ export async function managerSummary(
     select i.id,i.name,i.paused,s.paused station_paused,
       coalesce(sum(b.total-b.held-b.committed-b.waste),0)::int available
     from mint.items i join mint.stations s on s.id=i.station_id left join mint.batches b on b.item_id=i.id
-    where i.canteen_id=${canteen} group by i.id,s.id
+    where i.canteen_id=${canteen} and not i.archived group by i.id,s.id
   ), popular as (
     select u.name,count(*)::int portions,coalesce(sum(u.price),0)::bigint value
     from mint.units u join paid o on o.id=u.order_id where u.state not in ('cancelled','expired')

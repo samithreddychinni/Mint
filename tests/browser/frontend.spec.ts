@@ -1,5 +1,6 @@
 import { test, expect as browserExpect, type Page } from "@playwright/test";
 import QRCode from "qrcode";
+import campusMenu from "../../data/campus-menu.json" with { type: "json" };
 const expect = browserExpect.configure({ timeout: 5000 });
 
 test.beforeEach(async ({ page }) => {
@@ -1132,4 +1133,88 @@ test("navigation and repeated refresh share pending reads without retaining comp
   ).toHaveAttribute("aria-busy", "false");
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => reads).toBe(initial + 2);
+});
+
+test("full campus menu categories, canteen prices and manager search fit the fixed app", async ({
+  page,
+}) => {
+  let manager = false;
+  const fullCatalogue = {
+    ...catalogue,
+    items: campusMenu.map((item, index) => ({
+      ...catalogue.items[0],
+      id: `campus-${index}`,
+      canteen_id: item.canteen.toLowerCase(),
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      mode: item.mode,
+      available: item.quantity,
+      default_quantity: item.quantity,
+      station_name: item.station,
+    })),
+  };
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      json: route.request().url().endsWith("catalogue")
+        ? fullCatalogue
+        : manager
+          ? {
+              ...dashboard,
+              actor: { ...actor, kind: "staff" },
+              roles: [
+                { role: "manager", canteen_id: "main", station_id: null },
+              ],
+            }
+          : dashboard,
+    }),
+  );
+  await page.goto("/menu");
+  await expect(page.locator(".food-card")).toHaveCount(84);
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await noOverflow(page);
+    await expect(page.getByLabel("Menu category")).toBeInViewport();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBeTruthy();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel("Menu category").selectOption("Curries");
+  await expect(page.locator(".food-card")).toHaveCount(6);
+  const paneer = page
+    .locator(".food-card")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Paneer Butter Masala",
+        exact: true,
+      }),
+    });
+  await expect(paneer.getByText("₹95.00", { exact: true })).toBeVisible();
+  await page.screenshot({ path: ".local/campus-menu-mobile.png" });
+  await page.getByRole("button", { name: "Choose IT canteen" }).click();
+  await expect(page.locator(".food-card")).toHaveCount(94);
+  await page.getByLabel("Menu category").selectOption("Tiffins");
+  await expect(page.locator(".food-card")).toHaveCount(5);
+  await page.getByRole("button", { name: "Choose MBA canteen" }).click();
+  await expect(page.locator(".food-card")).toHaveCount(55);
+  await expect(page.getByLabel("Menu category")).toHaveValue("");
+  manager = true;
+  await page.goto("/manager");
+  await expect(page.locator(".stock-editor")).toHaveCount(84);
+  await page.getByLabel("Menu category").selectOption("Curries");
+  await expect(page.locator(".stock-editor")).toHaveCount(6);
+  await page.getByLabel("Search stock").fill("paneer");
+  await expect(page.locator(".stock-editor")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Paneer Butter Masala", exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
 });

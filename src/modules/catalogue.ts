@@ -37,7 +37,7 @@ export async function catalogue() {
     stations,
     items: await rows(
       db,
-      sql`select i.*,s.name station_name,s.paused station_paused,coalesce(sum(b.total-b.held-b.committed-b.waste),0)::int available from mint.items i join mint.stations s on s.id=i.station_id left join mint.batches b on b.item_id=i.id where i.canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) group by i.id,s.id order by i.name`,
+      sql`select i.*,s.name station_name,s.paused station_paused,coalesce(sum(b.total-b.held-b.committed-b.waste),0)::int available from mint.items i join mint.stations s on s.id=i.station_id left join mint.batches b on b.item_id=i.id where not i.archived and i.canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) group by i.id,s.id order by i.name`,
     ),
     serverTime: new Date().toISOString(),
   };
