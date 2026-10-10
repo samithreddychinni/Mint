@@ -72,12 +72,12 @@ test("student mobile interface, real Supabase session, CSRF/role rejection and o
     page.getByRole("heading", { name: "What sounds good?", exact: true }),
   ).toBeVisible();
   await noOverflow(page);
-  await page.getByLabel("Search menu", { exact: true }).fill("Dosa");
+  await page.getByLabel("Search menu", { exact: true }).fill("Set Dosa");
   await expect(
-    page.getByRole("heading", { name: "Dosa", exact: true }),
+    page.getByRole("heading", { name: "Set Dosa", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Fresh juice", exact: true }),
+    page.getByRole("heading", { name: "Badam Milk", exact: true }),
   ).toHaveCount(0);
   await page
     .getByLabel("Search menu", { exact: true })
@@ -241,7 +241,9 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     await payer
       .getByRole("button", { name: "Add Fresh juice", exact: true })
       .click();
-    await payer.getByRole("button", { name: "Add Dosa", exact: true }).click();
+    await payer
+      .getByRole("button", { name: "Add Set Dosa", exact: true })
+      .click();
     await payer.getByRole("button", { name: /View cart/ }).click();
     await payer.getByText("Use same-canteen credit", { exact: false }).click();
     await payer.getByRole("button", { name: "Place order" }).click();
@@ -261,7 +263,7 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     await payer.getByRole("button", { name: "Share", exact: true }).click();
     await payer
       .locator("label.portion")
-      .filter({ hasText: "Fresh juice × 1" })
+      .filter({ hasText: "Badam Milk × 1" })
       .first()
       .locator("input[type=checkbox]")
       .check();
@@ -282,8 +284,8 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     await expect(friend.getByText("Pickup assignment accepted.")).toBeVisible();
     // Refresh the emulator's sample timestamp after the network workflow; stale samples must remain rejected.
     await payerContext.setGeolocation({
-      latitude: 0.01,
-      longitude: 0.01,
+      latitude: geolocation.latitude,
+      longitude: geolocation.longitude,
       accuracy: 5,
     });
     await payer
@@ -302,8 +304,8 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
       .first()
       .click();
     await friendContext.setGeolocation({
-      latitude: 0.01,
-      longitude: 0.01,
+      latitude: geolocation.latitude,
+      longitude: geolocation.longitude,
       accuracy: 5,
     });
     await friend
@@ -459,4 +461,28 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
       tiffinContext.close(),
     ]);
   }
+});
+
+test("live campus replacement has exact canteen counts and searchable categories", async ({
+  page,
+}) => {
+  await login(page, "payer@demo.mint.invalid");
+  await page.getByRole("button", { name: "Choose Main canteen" }).click();
+  await expect(page.locator(".food-card")).toHaveCount(84);
+  await page.getByLabel("Menu category").selectOption("Today's special");
+  await expect(page.locator(".food-card")).toHaveCount(7);
+  await expect(
+    page.getByRole("heading", { name: "Butter Naan", exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: ".local/campus-menu-live.png" });
+  await page.getByRole("button", { name: "Choose IT canteen" }).click();
+  await expect(page.locator(".food-card")).toHaveCount(94);
+  await page.getByLabel("Menu category").selectOption("Tiffins");
+  await expect(page.locator(".food-card")).toHaveCount(5);
+  await page.getByRole("button", { name: "Choose MBA canteen" }).click();
+  await expect(page.locator(".food-card")).toHaveCount(55);
+  await page.getByLabel("Menu category").selectOption("Sweets & puddings");
+  await expect(page.locator(".food-card")).toHaveCount(5);
+  await noOverflow(page);
 });

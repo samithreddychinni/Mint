@@ -130,3 +130,7 @@ Start only one monitor. This process does not start automatically after a laptop
 The existing signed Supabase worker is scheduled every 30 seconds and should already provide inbound traffic when dispatch is healthy. This monitor is an additional health check; it does not replace the worker that expires orders and reconciles payments. No backend redeploy, extra endpoint, account secret, paid service or delivery feature is needed.
 
 Verification: `python3 -m unittest discover -s tests -p 'test_keep_render_warm.py'` covers response validation, failure recovery, request spacing and one-shot exit status. `--once` verifies the actual public backend.
+
+## Campus menu release, 11 October 2026
+
+`ea3438a` runs on Render and Vercel deployment `dpl_2AMekZgBjivVWNjDC4dXv77shiqF`, aliased to `https://mint-campus-demo.vercel.app`. Migration `0006_young_toxin` is applied. The 233-item menu was imported atomically after the new backend became healthy. Old paid portion snapshots and pickup passes are retained. See `docs/frontend/CAMPUS_MENU.md` for exact prices, stock assumptions, idempotency checks and verification limits. Re-import is not a stock replenishment command.

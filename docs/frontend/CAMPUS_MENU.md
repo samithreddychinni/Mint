@@ -46,3 +46,13 @@ Fresh breads, dosa/roast variants and prepared drinks use preparation tokens. Pa
 6. Verify exact live item counts, prices, available stock, categories and preserved portion snapshots. Verify a historical pickup can still finish and an archived item cannot be bought or restocked.
 
 The frontend offers category filters alongside readiness and name search. Switching canteens resets filters. Managers have category and item-name search in Stock. Only inner app lists scroll.
+
+## Deployment verification
+
+Release `ea3438a` is deployed to Render and Vercel. The public catalogue returns exactly 233 active items with the expected categories and prices. All 12 previous seed items are archived. All 77 pre-existing order-item snapshots retain their original names, prices, item IDs, counters and batches.
+
+The opening inventory contains 233 new batches and 9,643 portions: Main 4,512, IT 3,836, MBA 1,295. Applying the importer twice leaves batch count and total unchanged; retries do not add stock. Verification fixtures are removed after tests.
+
+Production build, TypeScript and lint passed. Three data checks and three focused database checks passed, including archived-item purchase/restock rejection, historical pickup completion, protected stock and dashboard scope. All 30 isolated frontend checks passed locally and through the public host. Three live student/serving/manager checks passed after import. The full provider payment and connected multi-counter workflow were not rerun for this menu-only release. Physical stock counts and real Android camera/GPS remain outside these checks.
+
+The Supabase platform advisor reports existing warnings for public execute privileges on its `public.rls_auto_enable()` function and disabled leaked-password protection. This menu migration changes neither that function nor Auth settings. Menu tables remain in the existing private schema with unchanged runtime permissions.
