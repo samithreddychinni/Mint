@@ -202,7 +202,12 @@ async function api<T>(path: string, data?: unknown): Promise<T> {
     body: data === undefined ? undefined : JSON.stringify(data),
     cache: "no-store",
   });
-  const result = await response.json();
+  const result = await response.json().catch(() => {
+    throw new ApiError(
+      "SERVICE_UNAVAILABLE",
+      "MINT is temporarily unavailable. Refresh to check your order before retrying.",
+    );
+  });
   if (!response.ok) throw new ApiError(result.code, result.message);
   if (managerMutation) mutationKeys.delete(fingerprint);
   return result as T;

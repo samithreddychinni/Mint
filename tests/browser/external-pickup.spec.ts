@@ -83,7 +83,7 @@ test("actual captured Razorpay test order requires student check-in and commits 
       .click();
     await expect(
       staff.getByText(
-        "Handover committed. Do not hand over those portions again.",
+        "Handover confirmed. Do not give these portions to another collector.",
       ),
     ).toBeVisible();
     const result = await student.evaluate(

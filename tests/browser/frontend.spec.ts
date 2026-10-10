@@ -137,11 +137,9 @@ test("checkout acknowledges refreshed prices and retains its retry key after an 
         });
       }
       return route.fulfill({
-        status: 503,
-        json: {
-          code: "UNAVAILABLE",
-          message: "Unable to confirm the outcome. Retry.",
-        },
+        status: 502,
+        contentType: "text/html",
+        body: "<!DOCTYPE html><title>Gateway error</title>",
       });
     }
     return route.fulfill({ json: dashboard });
@@ -158,7 +156,9 @@ test("checkout acknowledges refreshed prices and retains its retry key after an 
     .click();
   await page.getByRole("button", { name: "Place order" }).click();
   await expect(
-    page.getByText("Unable to confirm the outcome. Retry."),
+    page.getByText(
+      "MINT is temporarily unavailable. Refresh to check your order before retrying.",
+    ),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Place order" })).toBeEnabled();
   await page.getByRole("button", { name: "Place order" }).click();

@@ -22,7 +22,7 @@ if (!process.env.WORKER_AUTH_SECRET)
   );
 chmodSync(".env.local", 0o600);
 const remoteDatabase = new URL(process.env.DATABASE_URL!);
-remoteDatabase.port = "6543";
+remoteDatabase.port = "5432";
 const db = postgres(remoteDatabase.toString(), {
   ssl: {
     ca: readFileSync(process.env.DATABASE_SSL_CA_FILE!, "utf8"),
@@ -37,7 +37,7 @@ try {
     await db`select current_user as role, (select count(*)::int from mint.canteens) as canteens`;
   if (check[0].role !== "mint_backend")
     throw new Error("Deployment database role mismatch");
-  console.log("Deployment transaction-pooler TLS/runtime-role check passed.");
+  console.log("Deployment session-pooler TLS/runtime-role check passed.");
 } finally {
   await db.end({ timeout: 3 });
 }

@@ -15,6 +15,8 @@ await page.evaluate(async (password) => {
     body: JSON.stringify({ email: "second@demo.mint.invalid", password }),
   });
 }, accounts["second@demo.mint.invalid"].password);
+await page.waitForURL("**/menu");
+await page.getByRole("button", { name: "Sign out" }).waitFor();
 const result = await page.evaluate(async () => {
   const catalogue = await (await fetch("/api/catalogue")).json();
   const c = catalogue.canteens.find((c: { name: string }) => c.name === "Main");
@@ -91,13 +93,19 @@ await page.evaluate(
   },
   { key: process.env.RAZORPAY_KEY_ID!, order: result.order },
 );
-await page.waitForTimeout(2500);
-const frame = page
-  .frames()
-  .find((f) => f.url().startsWith("https://api.razorpay.com"));
-if (!frame) throw new Error("Checkout frame unavailable");
+await page
+  .locator('iframe[src^="https://api.razorpay.com"]')
+  .waitFor({ state: "visible", timeout: 60000 });
+const frame = page.frameLocator('iframe[src^="https://api.razorpay.com"]');
 const phone = frame.locator('input[type="tel"]');
-if (await phone.count()) {
+await Promise.race([
+  phone.first().waitFor({ state: "visible", timeout: 60000 }),
+  frame
+    .getByText("Netbanking", { exact: true })
+    .first()
+    .waitFor({ state: "visible", timeout: 60000 }),
+]);
+if (await phone.first().isVisible()) {
   await phone.first().fill("9000090000");
   const email = frame.locator('input[name="email"]');
   if (await email.count()) await email.first().fill("demo@mint.samithreddy.me");
@@ -106,6 +114,7 @@ if (await phone.count()) {
     .first()
     .click();
 }
+await page.screenshot({ path: ".local/live-payment-step.png" });
 await frame.getByText("Netbanking", { exact: true }).first().click();
 await page.waitForTimeout(1500);
 const popup = context
