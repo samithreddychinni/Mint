@@ -1,26 +1,40 @@
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { atomic, one, rows, scope, orderScope, type Actor } from "./core";
+import {
+  atomic,
+  one,
+  rows,
+  scope,
+  orderScope,
+  type Actor,
+  type Row,
+} from "./core";
 import { expireTx } from "./orders";
 export async function catalogue() {
-  const canteens = await rows(
+  const canteensRead = rows(
     db,
     sql`select * from mint.canteens where name in ('Main','IT','MBA') order by name`,
   );
-  const due = await rows(
+  const dueRead = rows(
     db,
     sql`select distinct o.canteen_id from mint.orders o where o.canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) and ((o.state='pending' and o.hold_until<=clock_timestamp()) or (o.state='confirmed' and o.deadline<=clock_timestamp() and exists(select 1 from mint.units u where u.order_id=o.id and u.arrived_at is null and u.state='pending')))`,
   );
+  const stationsRead = rows(
+    db,
+    sql`select * from mint.stations where canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) order by name`,
+  );
+  const [canteens, due, stations] = await Promise.all([
+    canteensRead,
+    dueRead,
+    stationsRead,
+  ]);
   for (const c of due)
     await atomic(String(c.canteen_id), (tx) =>
       expireTx(tx, String(c.canteen_id)),
     );
   return {
     canteens,
-    stations: await rows(
-      db,
-      sql`select * from mint.stations where canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) order by name`,
-    ),
+    stations,
     items: await rows(
       db,
       sql`select i.*,s.name station_name,s.paused station_paused,coalesce(sum(b.total-b.held-b.committed-b.waste),0)::int available from mint.items i join mint.stations s on s.id=i.station_id left join mint.batches b on b.item_id=i.id where i.canteen_id in(select id from mint.canteens where name in ('Main','IT','MBA')) group by i.id,s.id order by i.name`,
@@ -30,52 +44,54 @@ export async function catalogue() {
 }
 export async function orderView(a: Actor, id: string) {
   const o = await orderScope(a, id);
-  await atomic(String(o.canteen_id), (tx) =>
-    expireTx(tx, String(o.canteen_id)),
-  );
+  // Live orders need no write lock; overdue reads still run the same expiry transaction.
+  if (o.read_expiry_due)
+    await atomic(String(o.canteen_id), (tx) =>
+      expireTx(tx, String(o.canteen_id)),
+    );
   const payer = o.payer_id === a.id;
-  const orders = await rows(
+  const result = await one<Row & { order: Row; units: Row[] }>(
     db,
-    sql`select id,reference,state,total,credit,external,provider_order,hold_until,confirmed_at,target_at,deadline,policy,canteen_id from mint.orders where id=${id}`,
+    sql`select
+    jsonb_build_object('id',o.id,'reference',o.reference,'state',o.state,
+      'total',o.total,'credit',o.credit,'external',o.external,'provider_order',o.provider_order,
+      'hold_until',o.hold_until,'confirmed_at',o.confirmed_at,'target_at',o.target_at,
+      'deadline',o.deadline,'policy',o.policy,'canteen_id',o.canteen_id,'payer',${payer}::boolean) as "order",
+    coalesce((select jsonb_agg(portion order by portion->>'station_name',portion->>'name',portion->>'id') from (
+      select jsonb_build_object('id',u.id,'name',u.name,'station_id',u.station_id,'station_name',s.name,
+        'state',u.state,'mode',u.mode,'version',u.version,'arrived_at',u.arrived_at,
+        'collection_deadline',u.collection_deadline,'collected_at',u.collected_at,
+        'collector_id',u.collector_id,'collector_name',p.name,'token',u.token,
+        'price',case when ${payer} then u.price else null end,'payer',${payer}::boolean) portion
+      from mint.units u join mint.stations s on s.id=u.station_id join mint.profiles p on p.id=u.collector_id
+      where u.order_id=o.id and (${payer} or u.collector_id=${a.id})
+    ) portions),'[]'::jsonb) units,
+    case when ${payer} then coalesce((select jsonb_agg(jsonb_build_object('id',id,'state',state)) from mint.invitations where order_id=o.id),'[]'::jsonb) else '[]'::jsonb end invitations,
+    case when ${payer} then coalesce((select jsonb_agg(jsonb_build_object('amount',amount,'reason',reason,'state',state,'provider_refund',provider_refund)) from mint.resolutions where order_id=o.id),'[]'::jsonb) else '[]'::jsonb end resolutions
+    from mint.orders o where o.id=${id}`,
   );
-  const units = await rows(
-    db,
-    sql`select u.id,u.name,u.station_id,s.name station_name,u.state,u.mode,u.version,u.arrived_at,u.collection_deadline,u.collected_at,u.collector_id,p.name collector_name,u.token,case when ${payer} then u.price else null end price,${payer}::boolean payer from mint.units u join mint.stations s on s.id=u.station_id join mint.profiles p on p.id=u.collector_id where u.order_id=${id} and (${payer} or u.collector_id=${a.id}) order by s.name,u.name,u.id`,
-  );
-  const order = orders[0];
+  const order = result.order as import("./core").Row;
   if (!payer) {
     delete order.total;
     delete order.credit;
     delete order.external;
     delete order.provider_order;
   }
-  return {
-    order: { ...order, payer } as import("./core").Row,
-    units,
-    invitations: payer
-      ? await rows(
-          db,
-          sql`select id,state from mint.invitations where order_id=${id}`,
-        )
-      : [],
-    resolutions: payer
-      ? await rows(
-          db,
-          sql`select amount,reason,state,provider_refund from mint.resolutions where order_id=${id}`,
-        )
-      : [],
-    serverTime: new Date().toISOString(),
-  };
+  return { ...result, order, serverTime: new Date().toISOString() };
 }
 export async function dashboard(a: Actor) {
-  const profile = await one(
+  const profileRead = one(
     db,
     sql`select name,phone,completed_at from mint.profiles where id=${a.id}`,
   );
-  const memberships = await rows(
+  const membershipsRead = rows(
     db,
     sql`select r.*,c.name canteen_name,s.name station_name from mint.roles r join mint.canteens c on c.id=r.canteen_id left join mint.stations s on s.id=r.station_id where user_id=${a.id}`,
   );
+  const [profile, memberships] = await Promise.all([
+    profileRead,
+    membershipsRead,
+  ]);
   if (a.kind === "staff")
     return {
       actor: a,
@@ -87,26 +103,32 @@ export async function dashboard(a: Actor) {
       invitations: [],
       serverTime: new Date().toISOString(),
     };
+  const [orders, credits, ledger, invitations] = await Promise.all([
+    rows(
+      db,
+      sql`select distinct o.id,o.reference,o.state,o.created_at,o.deadline,o.canteen_id,c.name canteen_name,(o.payer_id=${a.id}) payer,(select jsonb_agg(jsonb_build_object('state',fu.state,'arrived',fu.arrived_at is not null)) from mint.units fu where fu.order_id=o.id and (o.payer_id=${a.id} or fu.collector_id=${a.id})) fulfillment from mint.orders o join mint.canteens c on c.id=o.canteen_id left join mint.units u on u.order_id=o.id where o.payer_id=${a.id} or u.collector_id=${a.id} order by o.created_at desc limit 50`,
+    ),
+    rows(
+      db,
+      sql`select a.*,c.name canteen_name from mint.credit_accounts a join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id}`,
+    ),
+    rows(
+      db,
+      sql`select l.amount,l.reserved_delta,l.reason,l.order_id,l.created_at,c.name canteen_name from mint.credit_ledger l join mint.credit_accounts a on a.id=l.account_id join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id} order by l.created_at desc limit 100`,
+    ),
+    rows(
+      db,
+      sql`select i.id,i.state,o.reference,o.deadline,p.name sender_name,(select jsonb_agg(jsonb_build_object('name',u.name,'station',s.name)) from mint.units u join mint.stations s on s.id=u.station_id where u.order_id=i.order_id and u.id::text in(select jsonb_object_keys(i.versions))) portions from mint.invitations i join mint.orders o on o.id=i.order_id join mint.profiles p on p.id=i.sender_id where i.recipient_id=${a.id} and i.state='pending'`,
+    ),
+  ]);
   return {
     actor: a,
     profile,
     roles: memberships,
-    orders: await rows(
-      db,
-      sql`select distinct o.id,o.reference,o.state,o.created_at,o.deadline,o.canteen_id,c.name canteen_name,(o.payer_id=${a.id}) payer,(select jsonb_agg(jsonb_build_object('state',fu.state,'arrived',fu.arrived_at is not null)) from mint.units fu where fu.order_id=o.id and (o.payer_id=${a.id} or fu.collector_id=${a.id})) fulfillment from mint.orders o join mint.canteens c on c.id=o.canteen_id left join mint.units u on u.order_id=o.id where o.payer_id=${a.id} or u.collector_id=${a.id} order by o.created_at desc limit 50`,
-    ),
-    credits: await rows(
-      db,
-      sql`select a.*,c.name canteen_name from mint.credit_accounts a join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id}`,
-    ),
-    ledger: await rows(
-      db,
-      sql`select l.amount,l.reserved_delta,l.reason,l.order_id,l.created_at,c.name canteen_name from mint.credit_ledger l join mint.credit_accounts a on a.id=l.account_id join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id} order by l.created_at desc limit 100`,
-    ),
-    invitations: await rows(
-      db,
-      sql`select i.id,i.state,o.reference,o.deadline,p.name sender_name,(select jsonb_agg(jsonb_build_object('name',u.name,'station',s.name)) from mint.units u join mint.stations s on s.id=u.station_id where u.order_id=i.order_id and u.id::text in(select jsonb_object_keys(i.versions))) portions from mint.invitations i join mint.orders o on o.id=i.order_id join mint.profiles p on p.id=i.sender_id where i.recipient_id=${a.id} and i.state='pending'`,
-    ),
+    orders,
+    credits,
+    ledger,
+    invitations,
     serverTime: new Date().toISOString(),
   };
 }

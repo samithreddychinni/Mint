@@ -6,6 +6,7 @@ import { handle, body } from "@/lib/http";
 import { actor, authClient } from "@/lib/auth";
 import { insist } from "@/lib/errors";
 import { one, rate, hash, student } from "@/modules/core";
+import { managerSummary } from "@/modules/manager-summary";
 import { updateProfile } from "@/modules/profiles";
 import {
   catalogue,
@@ -159,6 +160,18 @@ async function dispatch(request: NextRequest, segments: string[]) {
       return worklist(
         a,
         uuid.parse(request.nextUrl.searchParams.get("station")),
+      );
+    if (
+      segments[0] === "manager" &&
+      segments.length === 3 &&
+      segments[2] === "summary"
+    )
+      return managerSummary(
+        a,
+        uuid.parse(segments[1]),
+        z
+          .enum(["today", "week"])
+          .parse(request.nextUrl.searchParams.get("period") || "today"),
       );
     if (segments[0] === "manager" && segments.length === 2)
       return managerView(a, uuid.parse(segments[1]));

@@ -916,3 +916,173 @@ test("shared recipient has preparation controls beside scanned items and can com
   });
   await expect(page.getByText("Dosa × 1", { exact: true })).toHaveCount(0);
 });
+
+test("order details render while a menu refresh is blocked and an old response cannot replace another order", async ({
+  page,
+}) => {
+  let slowMenu = false;
+  let releaseMenu!: () => void;
+  const menuGate = new Promise<void>((resolve) => {
+    releaseMenu = resolve;
+  });
+  let releaseOld!: () => void;
+  const oldGate = new Promise<void>((resolve) => {
+    releaseOld = resolve;
+  });
+  const second = { ...order, id: "order-2", reference: "MINT-0002" };
+  let detailReads = 0;
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") {
+      if (slowMenu) await menuGate;
+      return route.fulfill({ json: catalogue });
+    }
+    if (path === "/api/orders/order-1") {
+      detailReads++;
+      // The second request is a delayed refresh of the order being left behind.
+      if (detailReads > 1) await oldGate;
+      return route.fulfill({
+        json: { order, units, invitations: [], resolutions: [], serverTime },
+      });
+    }
+    if (path === "/api/orders/order-2")
+      return route.fulfill({
+        json: {
+          order: second,
+          units,
+          invitations: [],
+          resolutions: [],
+          serverTime,
+        },
+      });
+    return route.fulfill({ json: { ...dashboard, orders: [order, second] } });
+  });
+  await page.goto("/orders");
+  await expect(
+    page.getByRole("heading", { name: "Your orders", exact: true }),
+  ).toBeVisible();
+  slowMenu = true;
+  await page.getByRole("button", { name: /MINT-0001/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your pickup" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("MINT-0001", { exact: false }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(() => detailReads).toBe(2);
+  await page.getByRole("link", { name: "Orders", exact: true }).click();
+  await page.getByRole("button", { name: /MINT-0002/ }).click();
+  await expect(
+    page.getByText("MINT-0002", { exact: false }).first(),
+  ).toBeVisible();
+  const oldResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/api/orders/order-1"),
+  );
+  releaseOld();
+  releaseMenu();
+  await (await oldResponse).finished();
+  await expect(
+    page.getByRole("main").getByText("MINT-0001", { exact: false }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Your pickup" }),
+  ).toBeVisible();
+});
+
+test("manager dashboard is scoped, shows separate money totals, changes period and stays inside the app frame", async ({
+  page,
+}) => {
+  let fail = false;
+  const periods: string[] = [];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/catalogue")
+      return route.fulfill({ json: catalogue });
+    if (url.pathname.endsWith("/summary")) {
+      expect(url.pathname).toBe("/api/manager/main/summary");
+      const period = url.searchParams.get("period")!;
+      periods.push(period);
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          json: {
+            code: "UNAVAILABLE",
+            message: "Sales are temporarily unavailable.",
+          },
+        });
+      return route.fulfill({
+        json: {
+          canteen_id: "main",
+          period,
+          start_at: serverTime,
+          server_time: serverTime,
+          paid_orders: period === "today" ? 12 : 48,
+          paid_value: period === "today" ? 145000 : 650000,
+          payments_captured: 100000,
+          credit_used: 45000,
+          credit_issued: 5000,
+          credit_balance: 250000,
+          collected_portions: 26,
+          pending_portions: 7,
+          arrived_portions: 3,
+          payment_reviews: 1,
+          pending_refunds: 0,
+          overdue_portions: 0,
+          paused_items: 1,
+          worker_healthy: true,
+          popular_items: [{ name: "Fresh juice", portions: 18, value: 72000 }],
+          low_stock: [{ id: "idli", name: "Idli", available: 0 }],
+        },
+      });
+    }
+    return route.fulfill({
+      json: {
+        ...dashboard,
+        actor: { ...actor, kind: "staff" },
+        roles: [{ role: "manager", canteen_id: "main", station_id: null }],
+      },
+    });
+  });
+  await page.goto("/dashboard");
+  const panel = page.getByRole("region", { name: "Online sales dashboard" });
+  await expect(panel.getByText("₹1,450.00", { exact: true })).toBeVisible();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await noOverflow(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBeTruthy();
+    await expect(
+      page.getByRole("link", { name: "Dashboard", exact: true }),
+    ).toBeVisible();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await panel.getByRole("button", { name: "Last 7 days" }).click();
+  await expect(panel.getByText("₹6,500.00", { exact: true })).toBeVisible();
+  expect(periods).toContain("week");
+  await expect(panel.getByText("Sold out", { exact: true })).toBeVisible();
+  await page.screenshot({
+    path: ".local/qa/manager-dashboard-mobile.png",
+    fullPage: true,
+  });
+  fail = true;
+  await panel.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(panel.getByRole("alert")).toContainText(
+    "Sales are temporarily unavailable.",
+  );
+  fail = false;
+  await panel.getByRole("button", { name: "Retry sales" }).click();
+  await expect(panel.getByText("₹1,450.00", { exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: "Stock", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Available stock" }),
+  ).toBeVisible();
+});

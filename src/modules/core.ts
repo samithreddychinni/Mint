@@ -81,14 +81,16 @@ export async function rate(key: string, limit: number, seconds: number) {
   );
 }
 export async function orderScope(a: Actor, id: string) {
-  const order = await one(db, sql`select * from mint.orders where id=${id}`);
+  const order = await one(
+    db,
+    sql`select o.*,
+    (o.payer_id=${a.id} or exists(select 1 from mint.units where order_id=o.id and collector_id=${a.id})) related,
+    ((o.state='pending' and o.hold_until<=clock_timestamp()) or
+      (o.state='confirmed' and o.deadline<=clock_timestamp() and exists(select 1 from mint.units where order_id=o.id and arrived_at is null and state='pending'))) read_expiry_due
+    from mint.orders o where o.id=${id}`,
+  );
   insist(order, "NOT_FOUND", "Order not found.", 404);
-  const related =
-    order.payer_id === a.id ||
-    (await one(
-      db,
-      sql`select 1 from mint.units where order_id=${id} and collector_id=${a.id}`,
-    ));
-  insist(related, "FORBIDDEN", "This order is not assigned to you.", 403);
+  insist(order.related, "FORBIDDEN", "This order is not assigned to you.", 403);
+  delete order.related;
   return order;
 }

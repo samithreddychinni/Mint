@@ -16,6 +16,7 @@ export default async function Page({
         "account",
         "staff",
         "manager",
+        "dashboard",
       ].includes(screen[0])
     ) &&
     !(screen.length === 2 && screen[0] === "orders")

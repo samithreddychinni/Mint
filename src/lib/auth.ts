@@ -57,7 +57,7 @@ export async function actor(): Promise<Actor> {
     403,
   );
   await db.execute(
-    sql`insert into mint.profiles(id,email,name,kind) values(${user.id},${email},${email.split("@")[0]},${kind}) on conflict(id) do update set email=excluded.email,kind=excluded.kind`,
+    sql`insert into mint.profiles(id,email,name,kind) values(${user.id},${email},${email.split("@")[0]},${kind}) on conflict(id) do update set email=excluded.email,kind=excluded.kind where mint.profiles.email is distinct from excluded.email or mint.profiles.kind is distinct from excluded.kind`,
   );
   return { id: user.id, email, kind };
 }

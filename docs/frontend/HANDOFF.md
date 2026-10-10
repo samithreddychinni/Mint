@@ -1,6 +1,6 @@
 # MINT frontend implementation handoff
 
-**Date:** 10 October 2026
+**Date:** 11 October 2026
 
 **Workspace:** `/run/media/samithreddy/Projects/mint`
 
@@ -709,3 +709,33 @@ The user was testing location from an academic block, outside the canteen. Rejec
 Migration `0005_thick_vertigo` adds private profile phone/completion fields and a bounded item default quantity. It is additive and does not reset stock or rewrite existing orders. Nine focused workflow tests passed, including actual accepted-recipient scanning/handover, paid-order snapshots, stale manager edits, actor-only profile updates, protected stock, and preparation/concurrent-rights regressions. Supabase database security advisors reported no findings. The full prior workflow suite is not rerun for this change.
 
 All 26 isolated frontend checks passed locally for these refinements. The public demo-credit workflow verified shared-recipient collection, name preservation on the first scan, no phone disclosure to staff, private profile updates, and complete order collection. Release `f7c5aa7` was healthy through both hosts. A small follow-up places the invitation indicator within the bell button; device GPS/camera and background push are still outside verified results.
+
+## Speed and manager dashboard, 11 October 2026
+
+The latest user priority is faster order details, a useful manager sales dashboard, and warm app styling. Delivery implementation requires the user's next approval. The delivery proposal remains a document only.
+
+### Implemented
+
+- Order detail, menu, account and counter reads start in parallel. Order detail renders as soon as it arrives when the account is already known. A slow menu refresh does not block pickup details.
+- Navigation invalidates previous refresh results. Delayed responses cannot replace the selected order or canteen report. Mutations refresh the current route after navigation. Hidden tabs do not poll; returning to a visible tab refreshes it. Automatic polling does not overlap a pending refresh.
+- Database reads combine order authorization and related-collector lookup. One subsequent statement reads the receipt, current portions, invitations and financial resolutions. Non-overdue order reads skip the canteen write transaction. Overdue confirmed portions and expired payment holds still use the existing locked expiry path. No money or pickup authorization comes from a browser cache.
+- Independent account and catalogue queries run in parallel through the existing bounded connection pool. Auth still validates the user server-side. Profile upserts write only changed identity fields. QR generation loads when a pass is requested; scanner code remains on demand.
+- Assigned managers have a Dashboard tab at `/dashboard`, a Stock tab at `/manager`, and Serving and Account tabs. A manager signing in at `/` opens Dashboard. Serving accounts receive no dashboard or stock access.
+- `GET /api/manager/:canteen/summary?period=today|week` checks manager scope and returns a compact aggregate. `today` begins at campus midnight in Asia/Kolkata; `week` includes today and six previous campus days. Reports end at server time. Invalid periods are rejected.
+- Sales: paid order value and count, captured Razorpay payments, canteen credit used, cancellation credit issued, and the current credit balance including reservations. Paid value includes portions later cancelled; it is not net bank revenue. Captured payments use capture record time; credit usage uses order confirmation time; cancellation credit uses ledger event time. Current credit balance is not limited to the selected period.
+- Pickup: portions collected during the selected period, portions waiting now, and those already arrived. The waiting and arrived counts include outstanding portions from earlier days.
+- Campus favourites show paid portions in the period, excluding cancelled/expired portions. Running low lists open items with five or fewer available portions, including sold-out items. Paused items have a separate count. Stock opens the existing protected stock editor.
+- Payment exceptions, unfinished bank refunds, overdue arrived portions, and stale/error worker health appear only when they need attention. These are read-only indicators; they do not create a new approval or refund workflow.
+- No walk-in sales, cashier controls, delivery orders or delivery charges were added.
+
+### Visual contract
+
+Keep the existing fixed app frame and scrolling inner content. Dashboard uses the same paper, burgundy and Georgia headings as the rest of MINT. Its sales card uses `#8B163C`, cream text `#FFFAFC`, and muted rose labels `#F4C7D5`; an understated sprout supplies the illustration. The selected date button uses `#A4123F` and cream text. Money cards use two columns on phones and four at widths of at least 900 px. Popular-item and stock lists use one column on phones and two on wide screens. Preserve 44 px controls, readable money values, retry feedback, loading placeholders and the fixed bottom navigation. The menu greeting includes the student's first name when available.
+
+### Verification and limits
+
+Focused workflow checks cover dashboard totals/date boundaries/scope, shared-recipient privacy, and order expiry idempotency. Browser checks include a deliberately blocked menu response, an old order response arriving after navigation, dashboard period/retry/stock navigation, and frame layout at small phone, landscape and desktop sizes. Existing checkout, install, scanner and profile checks remain required.
+
+Before this change, three warm public-host samples measured catalogue at 428–637 ms, account at 1365–1543 ms, and order details at 1658–1745 ms. The old frontend waited for all three sequentially. This is a fetch-time baseline, not a physical-phone measurement. Sampled Postgres order/portion lookup execution was below 1 ms; network round trips were the main observed wait. Keep the bounded pool and existing indexes. Record post-deployment timings in `docs/DEPLOYMENT.md`.
+
+Physical Android camera/GPS, provider-origin webhooks, background push and large simultaneous-user load are not verified by these checks. Free Render wake-up delay is a hosting limit. Do not describe warm-request results as a cold-start or load-test guarantee.

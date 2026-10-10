@@ -1127,3 +1127,98 @@ after(async () => {
   }
   await connection.end();
 });
+
+test("manager sales summary uses campus days, separates credit, excludes cancelled favourites and stays scoped", async () => {
+  const { managerSummary } = await import("../src/modules/manager-summary");
+  const f = await fixture();
+  const today = await confirmed(f, 3);
+  const yesterday = await confirmed(f);
+  const old = await confirmed(f);
+  const todayUnits = await portions(today.id);
+  await cancel(f.payer, String(today.id), [String(todayUnits[0].id)]);
+  await db.execute(
+    sql`update mint.orders set confirmed_at=(date_trunc('day',current_timestamp at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata')-interval '12 hours' where id=${yesterday.id}`,
+  );
+  await db.execute(
+    sql`update mint.orders set confirmed_at=current_timestamp-interval '8 days' where id=${old.id}`,
+  );
+  await db.execute(
+    sql`update mint.units set state='collected',collected_at=current_timestamp where order_id=${old.id}`,
+  );
+  await db.execute(
+    sql`update mint.units set arrived_at=current_timestamp where id=${todayUnits[1].id}`,
+  );
+  await db.execute(
+    sql`insert into mint.payments(id,order_id,amount,status,created_at) values(${randomUUID()},${yesterday.id},400,'captured',current_timestamp-interval '12 hours')`,
+  );
+  // Keep the payment event in the previous campus day even near midnight.
+  await db.execute(
+    sql`update mint.payments set created_at=(select confirmed_at from mint.orders where id=${yesterday.id}) where order_id=${yesterday.id}`,
+  );
+  const day = await managerSummary(f.manager, f.c, "today");
+  const week = await managerSummary(f.manager, f.c, "week");
+  assert.equal(day.paid_orders, 1);
+  assert.equal(Number(day.paid_value), 1500);
+  assert.equal(Number(day.credit_used), 1500);
+  assert.equal(Number(day.credit_issued), 500);
+  assert.equal(Number(day.credit_balance), 98000);
+  assert.equal(Number(day.payments_captured), 0);
+  assert.equal(day.collected_portions, 1);
+  assert.equal(day.pending_portions, 3);
+  assert.equal(day.arrived_portions, 1);
+  assert.equal(week.paid_orders, 2);
+  assert.equal(Number(week.paid_value), 2000);
+  assert.equal(Number(week.payments_captured), 400);
+  assert.deepEqual(week.popular_items, [
+    { name: "Fixture rice", portions: 3, value: 1500 },
+  ]);
+  assert.ok(
+    new Date(String(day.start_at)).toISOString().endsWith("T18:30:00.000Z"),
+  );
+  await assert.rejects(
+    managerSummary(f.staff, f.c, "today"),
+    safeError("FORBIDDEN"),
+  );
+  await assert.rejects(
+    managerSummary(f.payer, f.c, "today"),
+    safeError("FORBIDDEN"),
+  );
+  await assert.rejects(
+    managerSummary(f.manager, randomUUID(), "week"),
+    safeError("FORBIDDEN"),
+  );
+});
+
+test("fast order reads still expire overdue portions once and hide payer-only receipt data", async () => {
+  const f = await fixture();
+  const order = await confirmed(f, 2);
+  const initial = await orderView(f.payer, String(order.id));
+  assert.equal(initial.order.total, 1000);
+  assert.equal((initial.units as unknown[]).length, 2);
+  await assert.rejects(
+    orderView(f.friend, String(order.id)),
+    safeError("FORBIDDEN"),
+  );
+  await db.execute(
+    sql`update mint.orders set deadline=current_timestamp-interval '1 second' where id=${order.id}`,
+  );
+  const expired = await orderView(f.payer, String(order.id));
+  assert.ok(
+    (expired.units as { state: string }[]).every((u) => u.state === "expired"),
+  );
+  await orderView(f.payer, String(order.id));
+  const credits = await one(
+    db,
+    sql`select count(*)::int n,sum(amount)::int value from mint.credit_ledger where order_id=${order.id} and source like 'cancel:%'`,
+  );
+  assert.equal(credits.n, 2);
+  assert.equal(credits.value, 1000);
+  const pending = await hold(f.payer, cart(f));
+  await db.execute(
+    sql`update mint.orders set hold_until=current_timestamp-interval '1 second' where id=${pending.id}`,
+  );
+  assert.equal(
+    (await orderView(f.payer, String(pending.id))).order.state,
+    "expired",
+  );
+});

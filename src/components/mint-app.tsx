@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -27,11 +26,16 @@ import {
   Store,
   Pencil,
   Bell,
+  ChartNoAxesColumn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { InstallPrompt } from "@/components/install-prompt";
+import {
+  ManagerDashboard,
+  type ManagerSummary,
+} from "@/components/manager-dashboard";
 import { ProfileForm, type Profile } from "@/components/profile-form";
 import {
   fulfillmentSummary,
@@ -276,6 +280,13 @@ export function MintApp() {
   const checkoutKey = useRef<string>("");
   const handoverKey = useRef<string>("");
   const activeRefreshes = useRef(0);
+  const refreshVersion = useRef(0);
+  const refreshCurrent = useRef<() => Promise<Me | null>>(async () => null);
+  const [managerSummary, setManagerSummary] = useState<ManagerSummary | null>(
+    null,
+  );
+  const [reportPeriod, setReportPeriod] = useState<"today" | "week">("today");
+  const [reportError, setReportError] = useState("");
   const actionRunning = useRef(false);
   useEffect(() => {
     content.current?.scrollTo(0, 0);
@@ -299,71 +310,132 @@ export function MintApp() {
     viewport?.addEventListener("resize", resize);
     return () => viewport?.removeEventListener("resize", resize);
   }, []);
+  const reportCanteen =
+    tab === "dashboard" &&
+    me?.roles.some((r) => r.role === "manager" && r.canteen_id === canteen)
+      ? canteen
+      : "";
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
+    const currentRequest = () => refreshVersion.current === version;
     activeRefreshes.current++;
-    try {
-      const c = await api<Catalogue>("catalogue");
-      c.canteens.sort(
-        (a, b) =>
-          ["Main", "IT", "MBA"].indexOf(a.name) -
-          ["Main", "IT", "MBA"].indexOf(b.name),
-      );
-      setCatalogue(c);
-      setCanteen((v) => v || c.canteens[0]?.id || "");
-      setOffset(Date.parse(c.serverTime) - Date.now());
-      let current: Me | null = null;
-      try {
-        current = await api<Me>("me");
-        setMe(current);
-        if (pathname === "/") {
-          const destination =
-            current.actor.kind === "student"
-              ? "menu"
-              : current.roles.some((r) => r.role === "manager")
-                ? "manager"
-                : current.roles.some((r) => r.role === "serving")
-                  ? "staff"
-                  : "account";
-          router.replace("/" + destination);
-        }
-      } catch (e) {
-        if (e instanceof ApiError && e.code === "UNAUTHENTICATED") setMe(null);
-        else throw e;
-      }
-      if (current && selectedOrder)
-        setDetail(await api<Detail>("orders/" + selectedOrder));
-      if (current && station && tab === "staff") {
-        const latest = await api<Unit[]>("staff/worklist?station=" + station);
-        setWork(latest);
-        setResolved((previous) =>
-          previous
-            .map((unit) => {
-              const found = latest.find((entry) => entry.id === unit.id);
-              return found && found.version === unit.version
-                ? { ...unit, ...found }
-                : unit;
-            })
-            .filter((unit) => unit.state !== "collected"),
+    let current: Me | null = null;
+    const reads: Promise<unknown>[] = [
+      api<Catalogue>("catalogue").then((c) => {
+        if (!currentRequest()) return;
+        c.canteens.sort(
+          (a, b) =>
+            ["Main", "IT", "MBA"].indexOf(a.name) -
+            ["Main", "IT", "MBA"].indexOf(b.name),
         );
-      }
-      setFresh(new Date().toLocaleTimeString("en-IN"));
-      return current;
-    } catch (e) {
-      setMessage(
-        e instanceof Error
-          ? e.message
-          : "Unable to refresh. Last visible values may be stale.",
+        setCatalogue(c);
+        setCanteen((v) => v || c.canteens[0]?.id || "");
+        setOffset(Date.parse(c.serverTime) - Date.now());
+      }),
+      api<Me>("me")
+        .then((value) => {
+          current = value;
+          if (!currentRequest()) return;
+          setMe(value);
+          setAuthReady(true);
+          if (pathname === "/") {
+            const destination =
+              value.actor.kind === "student"
+                ? "menu"
+                : value.roles.some((r) => r.role === "manager")
+                  ? "dashboard"
+                  : value.roles.some((r) => r.role === "serving")
+                    ? "staff"
+                    : "account";
+            router.replace("/" + destination);
+          }
+        })
+        .catch((e) => {
+          if (e instanceof ApiError && e.code === "UNAUTHENTICATED") {
+            if (currentRequest()) {
+              setMe(null);
+              setDetail(null);
+              setManagerSummary(null);
+              setAuthReady(true);
+            }
+          } else {
+            if (currentRequest()) setAuthReady(true);
+            throw e;
+          }
+        }),
+    ];
+    // Order data starts immediately and renders independently of menu/account refreshes.
+    if (selectedOrder)
+      reads.push(
+        api<Detail>("orders/" + selectedOrder).then((value) => {
+          if (currentRequest()) {
+            setDetail(value);
+            setOffset(Date.parse(value.serverTime) - Date.now());
+          }
+        }),
       );
-      return null;
+    if (station && tab === "staff")
+      reads.push(
+        api<Unit[]>("staff/worklist?station=" + station).then((latest) => {
+          if (!currentRequest()) return;
+          setWork(latest);
+          setResolved((previous) =>
+            previous
+              .map((unit) => {
+                const found = latest.find((entry) => entry.id === unit.id);
+                return found && found.version === unit.version
+                  ? { ...unit, ...found }
+                  : unit;
+              })
+              .filter((unit) => unit.state !== "collected"),
+          );
+        }),
+      );
+    if (reportCanteen)
+      reads.push(
+        api<ManagerSummary>(
+          `manager/${reportCanteen}/summary?period=${reportPeriod}`,
+        )
+          .then((value) => {
+            if (currentRequest()) {
+              setManagerSummary(value);
+              setReportError("");
+            }
+          })
+          .catch((e) => {
+            if (currentRequest())
+              setReportError(
+                e instanceof Error ? e.message : "Unable to load sales.",
+              );
+          }),
+      );
+    try {
+      const results = await Promise.allSettled(reads);
+      if (!currentRequest()) return null;
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected")
+        setMessage(
+          failed.reason instanceof Error
+            ? failed.reason.message
+            : "Unable to refresh. Last visible values may be stale.",
+        );
+      else setFresh(new Date().toLocaleTimeString("en-IN"));
+      return current;
     } finally {
       activeRefreshes.current--;
-      setAuthReady(true);
     }
-  }, [selectedOrder, station, tab, pathname, router]);
+  }, [
+    selectedOrder,
+    station,
+    tab,
+    pathname,
+    router,
+    reportCanteen,
+    reportPeriod,
+  ]);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!activeRefreshes.current) void refresh();
-    }, 0);
+    refreshCurrent.current = refresh;
+    const timer = setTimeout(() => void refresh(), 0);
     const polling = setInterval(() => {
       if (
         !activeRefreshes.current &&
@@ -372,15 +444,29 @@ export function MintApp() {
       )
         void refresh();
     }, 5000);
+    const visible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        navigator.onLine &&
+        !activeRefreshes.current
+      )
+        void refresh();
+    };
+    document.addEventListener("visibilitychange", visible);
+    const invalidate = () => {
+      refreshVersion.current++;
+    };
     return () => {
+      invalidate();
       clearTimeout(timer);
       clearInterval(polling);
+      document.removeEventListener("visibilitychange", visible);
     };
   }, [refresh]);
   useEffect(() => {
     const update = () => {
       setOnline(navigator.onLine);
-      if (navigator.onLine) void refresh();
+      if (navigator.onLine) void refreshCurrent.current();
     };
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -397,7 +483,7 @@ export function MintApp() {
       clearTimeout(initial);
       scanControls.current?.stop();
     };
-  }, [refresh]);
+  }, []);
   const run = async (fn: () => Promise<unknown>, success?: string) => {
     if (actionRunning.current) return;
     actionRunning.current = true;
@@ -406,7 +492,7 @@ export function MintApp() {
     try {
       await fn();
       if (success) setMessage(success);
-      await refresh();
+      await refreshCurrent.current();
     } catch (e) {
       setMessage(
         e instanceof Error
@@ -418,7 +504,7 @@ export function MintApp() {
         ["PRICE_CHANGED", "STOCK_CHANGED"].includes(e.code)
       ) {
         if (e.code === "PRICE_CHANGED") setPriceChanged(true);
-        await refresh();
+        await refreshCurrent.current();
       }
     } finally {
       actionRunning.current = false;
@@ -601,7 +687,7 @@ export function MintApp() {
     const timer = setTimeout(() => {
       if (tab === "staff" && !station) setStation(stationOptions[0]?.id || "");
       if (
-        tab === "manager" &&
+        ["manager", "dashboard"].includes(tab) &&
         !me.roles.some(
           (r) =>
             r.canteen_id === canteen &&
@@ -646,7 +732,14 @@ export function MintApp() {
           ? [{ route: "staff", label: "Serving", icon: ScanLine }]
           : []),
         ...(me?.roles.some((r) => r.role === "manager")
-          ? [{ route: "manager", label: "Stock", icon: Store }]
+          ? [
+              {
+                route: "dashboard",
+                label: "Dashboard",
+                icon: ChartNoAxesColumn,
+              },
+              { route: "manager", label: "Stock", icon: Store },
+            ]
           : []),
         { route: "account", label: "Account", icon: UserRound },
       ];
@@ -671,7 +764,9 @@ export function MintApp() {
   const logout = () =>
     run(async () => {
       await api("auth/logout", {});
+      refreshVersion.current++;
       setMe(null);
+      setManagerSummary(null);
       setDetail(null);
       setResolved([]);
       passDialog.current?.close();
@@ -731,9 +826,13 @@ export function MintApp() {
   };
   const showPasses = () =>
     run(async () => {
-      const passes = await api<
-        { token: string; stationName: string; arrived: boolean }[]
-      >(`orders/${selectedOrder}/passes`, {});
+      const [passes, { default: QRCode }] = await Promise.all([
+        api<{ token: string; stationName: string; arrived: boolean }[]>(
+          `orders/${selectedOrder}/passes`,
+          {},
+        ),
+        import("qrcode"),
+      ]);
       setCodes(
         await Promise.all(
           passes.map(async (pass) => ({
@@ -873,7 +972,8 @@ export function MintApp() {
             </button>
           </div>
         )}
-        {!authReady ? (
+        {!authReady ||
+        (!catalogue.serverTime && ["menu", "cart", "manager"].includes(tab)) ? (
           <div className="app-loading" role="status">
             <span className="brand-symbol">m✳</span>
             <p>Opening MINT…</p>
@@ -1050,7 +1150,11 @@ export function MintApp() {
               <>
                 <div className="menu-heading">
                   <div>
-                    <p className="eyebrow">MAKE TIME FOR YOUR BREAK</p>
+                    <p className="eyebrow">
+                      {me.profile?.name
+                        ? `A LITTLE BREAK, ${me.profile.name.split(" ")[0]}`
+                        : "MAKE TIME FOR YOUR BREAK"}
+                    </p>
                     <h1>What sounds good?</h1>
                     <p className="screen-subtitle">
                       Pick your canteen. We’ll take it from here.
@@ -2530,6 +2634,40 @@ export function MintApp() {
                     ))}
                   </section>
                 </div>
+              </>
+            )}
+            {tab === "dashboard" && !student && (
+              <>
+                <PageHeading
+                  eyebrow="YOUR CANTEEN, AT A GLANCE"
+                  title="A good day, in numbers."
+                  text="Online orders, from payment to pickup."
+                />
+                {canteenSelect("manager")}
+                {canManage ? (
+                  <ManagerDashboard
+                    summary={
+                      managerSummary?.canteen_id === canteen &&
+                      managerSummary.period === reportPeriod
+                        ? managerSummary
+                        : null
+                    }
+                    period={reportPeriod}
+                    onPeriod={(value) => {
+                      setReportError("");
+                      setReportPeriod(value);
+                    }}
+                    error={reportError}
+                    onRetry={() => void refreshCurrent.current()}
+                    onStock={() => setTab("manager")}
+                  />
+                ) : (
+                  <Empty
+                    icon={<ShieldCheck />}
+                    title="Manager access required"
+                    text="Only assigned managers can view this canteen’s sales."
+                  />
+                )}
               </>
             )}
             {tab === "manager" && !student && (
