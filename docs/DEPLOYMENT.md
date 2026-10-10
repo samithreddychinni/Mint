@@ -3,12 +3,12 @@
 ## Hosting
 
 - Vercel hosts the PWA at `https://mint-campus-demo.vercel.app`.
-- Render hosts the existing Next.js API as a Node 22 web service.
+- Render hosts the existing Next.js API at `https://mint-api-nlqd.onrender.com` as a Node 22 web service in Singapore. Service: `srv-db577s142hec73fv33rg` in the personal workspace, Free plan.
 - Vercel forwards `/api/*` to the Render HTTPS origin using a `beforeFiles` rewrite. Browser requests retain the Vercel origin and session cookies.
 - Supabase remains the database, Auth service, SMTP configuration, and durable scheduler.
 - Supabase Cron dispatches the signed worker request every 30 seconds. Point its URL at Render after Render passes health checks.
 
-There is no new database or migration required for the hosting change. Keep the existing restricted database role and verified TLS certificate.
+There is no new database or migration required for the hosting change. Keep the existing restricted database role and verified TLS certificate. Use the shared **session** pooler on port 5432 for this persistent backend. Do not force port 6543: Postgres.js pipelining is incompatible with the shared transaction pooler and caused observed stalls and mismatched results. See [Supabase's Postgres.js guidance](https://supabase.com/docs/guides/database/postgres-js).
 
 ## Runtime configuration
 
@@ -18,7 +18,7 @@ Render needs `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_P
 
 The same repository builds on both hosts. Vercel's API rewrite runs before the bundled API handlers. Runtime environment validation still requires the server variables during the Next.js build.
 
-The Render settings are recorded in `render.yaml`: Singapore region, Node 22.22.2, `npm ci --include=dev && npm run build`, `npm run start -- --port $PORT`, and `/api/health`.
+The Render settings are recorded in `render.yaml`: Singapore region, Node 22.22.2, `npm ci --include=dev && npm run build`, and `npm run start -- --port $PORT`. Render uses its default TCP liveness probe. `/api/health` separately verifies database access and reports the Render Git commit; check it through both hostnames. The original HTTP probe exceeded Render's five-second deadline during the pooler failure and temporarily removed the service from traffic.
 
 ## Deploy and verify
 
@@ -31,6 +31,12 @@ The Render settings are recorded in `render.yaml`: Singapore region, Node 22.22.
 7. Confirm scheduled executions update the worker heartbeat. Do not claim scheduler success from a manual request alone.
 8. Verify Razorpay merchant webhook delivery and university-email OTP using the approved provider settings.
 
+Use `BACKEND_URL=https://mint-api-nlqd.onrender.com` when running `scripts/deploy-config.ts` and `scripts/configure-hosted-worker.ts` with `npx tsx --env-file=.env.local`. The configuration script must retain the session-pooler port. Then deploy with `vercel deploy --prod --yes --archive=tgz`.
+
+The merchant test webhook URL is `https://mint-campus-demo.vercel.app/api/payments/webhook`. Enable `payment.captured` and `order.paid`, with the same webhook secret as the backend. The user confirmed this setting was saved. A manually signed event proves endpoint processing, but does not prove provider-origin delivery.
+
+Connected browser checks consume labelled demo credit and stock. Confirm the browser-payer fixture has enough same-canteen credit before the credit-only flow. Do not run diagnostic logout against the same account during another test: Supabase's default logout revokes that account's other sessions. Wait for Render rollouts to finish before running payment or handover checks.
+
 ## Release limits
 
 The currently available Razorpay credentials are test keys. Existing canteen locations and menus are demo configuration. A public deployment does not make these live campus settings.
@@ -39,4 +45,12 @@ Render's free plan can sleep and has resource limits. An always-on paid service 
 
 ## Deployment record
 
-Deployment is in progress. Replace this paragraph with the actual Render URL, deployed commit, verified checks, and remaining blockers after the hosts are live.
+Application code commit: `02df618`. Vercel deployment: `dpl_AgWgEsSoA4dXdHe1m3QaByGLfRYL`. Both hosts have completed builds, and the stable Vercel alias forwards API requests to Render.
+
+Verified: typecheck, lint, production build, API rewrite test, secure HttpOnly session cookies through the proxy, student/serving/manager roles, assigned-canteen stock controls, same-value stock update and idempotent retry, CSRF rejection, logout, signed worker authentication, scheduled worker heartbeat, and actual university-email OTP delivery and verification. The production dependency audit reported zero known vulnerabilities; development tooling still reports nine advisories.
+
+After the session-pooler rollout, all 21 isolated frontend browser checks passed against the public deployment. The connected credit-checkout flow passed delegation, separate app check-ins, station passes, partial handovers, preparation start/ready, and collection of all three portions. A fresh Razorpay test payment was captured and confirmed by the deployed server, followed by app check-in and a scoped handover recorded through the serving UI. Six simultaneous catalogue/health reads returned consistent data, with a maximum observed duration of 792 ms; this is a smoke check, not a load-capacity benchmark.
+
+Merchant-origin webhook delivery remains unverified: the user confirmed the webhook is enabled, but no provider event for the fresh payment reached `mint.provider_events`. Callback verification and scheduled reconciliation worked. Check the merchant Test Mode delivery log for the HTTP status; do not infer delivery from a confirmed payment.
+
+Physical camera/GPS, installed Android/iOS behavior, sustained load, closed-checkout recovery on a phone, live payment credentials, and surveyed campus configuration remain outside the verified results. Runtime values were inadvertently included in a private diagnostic tool read during deployment; they were not committed. Rotate affected runtime/payment/webhook/worker secrets before a real campus launch.

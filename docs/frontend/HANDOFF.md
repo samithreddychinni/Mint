@@ -532,11 +532,12 @@ Manager-stock database tests use temporary, isolated fixtures and remove them af
 
 ### Still needs verification
 
+Deployment update, 10 October 2026: the app is hosted on Vercel and its API on Render. See [the deployment record](../DEPLOYMENT.md). All 21 isolated frontend checks passed on the public host. Actual university-email OTP, a captured Razorpay test payment with callback verification, paid pickup, and the connected delegation/preparation/complete-collection flow passed. Gateway failures now show a recovery message, and the password helper text is an accessible description rather than part of the label.
+
 - Physical Android Chrome and iOS Safari installation, safe areas, and browser chrome.
 - Real keyboard opening, orientation changes, 200% text/zoom, and assistive-technology navigation.
 - Physical camera scanning and permission denial.
-- Live university OTP and live external-payment/resume/callback behaviour.
-- Connected student and staff workflows after the latest frontend changes.
+- Provider-origin webhook delivery, live payment credentials, and closed-checkout recovery on a phone.
 - Explicit preparation start → ready flow coverage in the isolated browser suite.
 - Screenshots of every screen, including empty/error/loading states, with visual inspection.
 

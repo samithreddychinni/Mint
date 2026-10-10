@@ -7,6 +7,9 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 await page.addInitScript("window.__name=(f)=>f");
+await page.addInitScript(() =>
+  localStorage.setItem("mint-install-dismissed", "1"),
+);
 await page.goto(process.env.MINT_DEPLOYMENT_URL || "http://localhost:3000");
 await page.evaluate(async (password) => {
   await fetch("/api/auth/password", {
