@@ -916,20 +916,21 @@ export function MintApp() {
                   />
                 </label>
                 {loginMode === "password" ? (
-                  <label className="field" htmlFor="password">
-                    Password
+                  <div className="field">
+                    <label htmlFor="password">Password</label>
                     <Input
                       id="password"
                       type="password"
+                      aria-describedby="password-help"
                       autoComplete="current-password"
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
-                    <span className="help-text">
+                    <span className="help-text" id="password-help">
                       Use the account assigned by your canteen administrator.
                     </span>
-                  </label>
+                  </div>
                 ) : sent ? (
                   <>
                     <label className="field" htmlFor="otp">

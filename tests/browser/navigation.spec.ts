@@ -180,6 +180,13 @@ test("sign-in has no marketing section or menu and the manifest includes install
   ).toBeTruthy();
   for (const icon of manifest.icons)
     expect((await page.request.get(icon.src)).status()).toBe(200);
+  await page.getByRole("button", { name: "Staff sign in" }).click();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Password", { exact: true }),
+  ).toHaveAccessibleDescription(
+    "Use the account assigned by your canteen administrator.",
+  );
   await page.screenshot({
     path: ".local/app-signin-mobile.png",
     fullPage: true,

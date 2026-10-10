@@ -7,7 +7,7 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 await page.addInitScript("window.__name=(f)=>f");
-await page.goto("http://localhost:3000");
+await page.goto(process.env.MINT_DEPLOYMENT_URL || "http://localhost:3000");
 await page.evaluate(async (password) => {
   await fetch("/api/auth/password", {
     method: "POST",
@@ -137,22 +137,36 @@ if (bank) {
   );
 }
 await page.waitForTimeout(3000);
-const { applyCaptured } = await import("../src/modules/payments");
 const { provider } = await import("../src/lib/razorpay");
 const paid = await provider<{
   items: import("../src/lib/razorpay").ProviderPayment[];
 }>(`orders/${result.order.provider_order}/payments`);
-for (const p of paid.items) if (p.status === "captured") await applyCaptured(p);
-const final = await page.evaluate(async (id) => {
-  const r = await fetch("/api/orders/" + id);
-  const data = await r.json();
-  return {
-    status: r.status,
-    state: data.order?.state,
-    confirmedAt: data.order?.confirmed_at,
-    deadline: data.order?.deadline,
-  };
-}, result.order.id);
+if (!paid.items.some((p) => p.status === "captured")) {
+  await browser.close();
+  throw new Error("The provider did not capture the test payment.");
+}
+const readOrder = () =>
+  page.evaluate(async (id) => {
+    const r = await fetch("/api/orders/" + id);
+    const data = await r.json();
+    return {
+      status: r.status,
+      state: data.order?.state,
+      confirmedAt: data.order?.confirmed_at,
+      deadline: data.order?.deadline,
+    };
+  }, result.order.id);
+let final = await readOrder();
+for (let attempt = 0; attempt < 30 && final.state !== "confirmed"; attempt++) {
+  await page.waitForTimeout(2000);
+  final = await readOrder();
+}
+if (final.status !== 200 || final.state !== "confirmed") {
+  await browser.close();
+  throw new Error(
+    "The deployed server did not confirm the captured test payment.",
+  );
+}
 writeFileSync(
   ".local/test-payment-end-to-end.json",
   JSON.stringify({
@@ -166,7 +180,5 @@ writeFileSync(
   { mode: 0o600 },
 );
 console.log("Actual test payment verification outcome:", final);
-const { connection } = await import("../src/db");
-await connection.end();
 await page.screenshot({ path: ".local/test-checkout.png", fullPage: true });
 await browser.close();
