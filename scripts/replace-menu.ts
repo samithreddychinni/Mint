@@ -14,6 +14,8 @@ const menu = z
       mode: z.enum(["ready", "made"]),
       quantity: z.number().int().min(0).max(10000),
       estimatedPrice: z.boolean(),
+      orderGroup: z.enum(["meal", "bread", "drink", "other"]),
+      orderCap: z.number().int().min(0).max(6),
     }),
   )
   .min(1)
@@ -92,10 +94,10 @@ if (!process.argv.includes("--apply")) {
       });
       const payload = tx.json(records);
       await tx`update mint.items set archived=true,paused=true where canteen_id in(select id from mint.canteens where name in('Main','IT','MBA')) and id not in(select id from jsonb_to_recordset(${payload}::jsonb) as r(id uuid))`;
-      await tx`insert into mint.items(id,canteen_id,station_id,name,price,mode,note,category,default_quantity,paused,archived)
-        select id,canteen_id,station_id,name,price,mode,note,category,quantity,false,false
-        from jsonb_to_recordset(${payload}::jsonb) as r(id uuid,canteen_id uuid,station_id uuid,name text,price integer,mode text,note text,category text,quantity integer)
-        on conflict(id) do update set name=excluded.name,price=excluded.price,category=excluded.category,default_quantity=excluded.default_quantity,paused=false,archived=false`;
+      await tx`insert into mint.items(id,canteen_id,station_id,name,price,mode,note,category,default_quantity,paused,archived,order_group,order_cap)
+        select id,canteen_id,station_id,name,price,mode,note,category,quantity,false,false,"orderGroup","orderCap"
+        from jsonb_to_recordset(${payload}::jsonb) as r(id uuid,canteen_id uuid,station_id uuid,name text,price integer,mode text,note text,category text,quantity integer,"orderGroup" text,"orderCap" integer)
+        on conflict(id) do update set name=excluded.name,price=excluded.price,category=excluded.category,default_quantity=excluded.default_quantity,paused=false,archived=false,order_group=excluded.order_group,order_cap=excluded.order_cap`;
       // Stable batch IDs make retries safe: they never top up consumed stock.
       await tx`with inserted as (
         insert into mint.batches(id,item_id,total)

@@ -393,7 +393,26 @@ export async function manage(
       );
       return previous.data;
     }
-    if (action === "stock") {
+    if (action === "limits-review") {
+      const target = await one(
+        tx,
+        sql`select p.id from mint.profiles p where p.email=${input.email} and p.kind='student' and exists(select 1 from mint.orders o left join mint.units u on u.order_id=o.id where o.canteen_id=${canteen} and (o.payer_id=p.id or u.collector_id=p.id))`,
+      );
+      insist(
+        target,
+        "NOT_FOUND",
+        "No student order history in your assigned canteen matches this email.",
+        404,
+      );
+      await audit(
+        tx,
+        a,
+        "review_order_limits",
+        String(target.id),
+        source + ":review",
+        { reason: input.reason, canteen },
+      );
+    } else if (action === "stock") {
       insist(
         Number.isInteger(input.quantity) &&
           Number(input.quantity) >= 0 &&
@@ -463,8 +482,17 @@ export async function manage(
         "ITEM_CHANGED",
         "The item changed while you were editing. Close the editor and reopen it to review the latest details.",
       );
+      if (input.orderCap !== undefined)
+        insist(
+          Number.isInteger(input.orderCap) &&
+            Number(input.orderCap) >= 0 &&
+            Number(input.orderCap) <= 6 &&
+            item.order_cap === input.expectedOrderCap,
+          "ITEM_CHANGED",
+          "The item limit changed. Close and reopen the editor to review it.",
+        );
       await tx.execute(
-        sql`update mint.items set name=${input.name},price=${input.price},note=${input.note},paused=${input.paused},default_quantity=${input.defaultQuantity} where id=${input.itemId} and canteen_id=${canteen} and not archived`,
+        sql`update mint.items set order_cap=coalesce(${input.orderCap ?? null}::integer,order_cap),name=${input.name},price=${input.price},note=${input.note},paused=${input.paused},default_quantity=${input.defaultQuantity} where id=${input.itemId} and canteen_id=${canteen} and not archived`,
       );
     } else if (action === "pause") {
       if (input.itemId)

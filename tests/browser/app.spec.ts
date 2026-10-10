@@ -68,6 +68,11 @@ test("student mobile interface, real Supabase session, CSRF/role rejection and o
   context,
 }) => {
   await login(page, "payer@demo.mint.invalid");
+  const me = await (await page.request.get("/api/me")).json();
+  expect(me.limits.tier).toBe("standard");
+  expect(me.limits.limits.activeOrders).toBe(2);
+  expect(me.limits.limits.perOrder).toBe(6);
+  expect(Number.isInteger(me.limits.usage.outstanding)).toBe(true);
   await expect(
     page.getByRole("heading", { name: "What sounds good?", exact: true }),
   ).toBeVisible();

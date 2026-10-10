@@ -758,6 +758,8 @@ test("pencil exposes menu settings, saves paise and keeps stock editing separate
     price: 4550,
     paused: true,
     defaultQuantity: 12,
+    orderCap: 0,
+    expectedOrderCap: 0,
     expectedSettings: JSON.stringify(["Fresh juice", 4000, "", false, 0]),
   });
   await expect(page.getByLabel("Item name", { exact: true })).toHaveCount(0);
@@ -1189,14 +1191,12 @@ test("full campus menu categories, canteen prices and manager search fit the fix
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Menu category").selectOption("Curries");
   await expect(page.locator(".food-card")).toHaveCount(6);
-  const paneer = page
-    .locator(".food-card")
-    .filter({
-      has: page.getByRole("heading", {
-        name: "Paneer Butter Masala",
-        exact: true,
-      }),
-    });
+  const paneer = page.locator(".food-card").filter({
+    has: page.getByRole("heading", {
+      name: "Paneer Butter Masala",
+      exact: true,
+    }),
+  });
   await expect(paneer.getByText("₹95.00", { exact: true })).toBeVisible();
   await page.screenshot({ path: ".local/campus-menu-mobile.png" });
   await page.getByRole("button", { name: "Choose IT canteen" }).click();
@@ -1217,4 +1217,73 @@ test("full campus menu categories, canteen prices and manager search fit the fix
     page.getByRole("heading", { name: "Paneer Butter Masala", exact: true }),
   ).toBeVisible();
   await noOverflow(page);
+});
+
+test("student ordering allowances explain active caps and block meal variants without hiding pickups", async ({
+  page,
+}) => {
+  let blocked = false;
+  const limits = {
+    tier: "standard",
+    limits: {
+      activeOrders: 2,
+      perOrder: 6,
+      outstanding: 10,
+      meals: 2,
+      drinks: 4,
+      perItem: 2,
+    },
+    usage: { activeOrders: 0, outstanding: 0, meals: 0, drinks: 0, byItem: {} },
+    completedDays: 0,
+    cooldownUntil: null,
+  };
+  const menu = {
+    ...catalogue,
+    items: catalogue.items.map((i) => ({
+      ...i,
+      available: 30,
+      order_group: i.id === "juice" ? "drink" : "meal",
+    })),
+  };
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      json: route.request().url().endsWith("catalogue")
+        ? menu
+        : {
+            ...dashboard,
+            limits: {
+              ...limits,
+              usage: { ...limits.usage, activeOrders: blocked ? 2 : 0 },
+            },
+          },
+    }),
+  );
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Add Dosa", exact: true }).click();
+  await page.getByRole("button", { name: "Add Dosa", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Add Idli", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Add Fresh juice", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Remove Dosa", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Add Idli", exact: true }),
+  ).toBeEnabled();
+  blocked = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(
+    page.getByText(
+      "You have 2 active orders. Open Orders to finish a pickup or resume payment.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add Fresh juice", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Open Orders", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your orders", exact: true }),
+  ).toBeVisible();
 });

@@ -47,6 +47,11 @@ const email = z
   .transform((v) => v.toLowerCase());
 const managerSchema = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("limits-review"),
+    email,
+    reason: z.string().trim().min(3).max(300),
+  }),
+  z.object({
     action: z.literal("item-settings"),
     itemId: uuid,
     name: z.string().trim().min(1).max(100),
@@ -54,6 +59,8 @@ const managerSchema = z.discriminatedUnion("action", [
     note: z.string().trim().max(300),
     paused: z.boolean(),
     defaultQuantity: z.number().int().min(0).max(10000),
+    orderCap: z.number().int().min(0).max(6).optional(),
+    expectedOrderCap: z.number().int().min(0).max(6).optional(),
     expectedSettings: z.string().max(1000),
     reason: z.string().min(3).max(300),
   }),

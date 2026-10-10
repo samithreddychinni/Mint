@@ -81,12 +81,19 @@ export const items = mint.table(
     mode: text("mode").notNull(),
     note: text("note").notNull().default(""),
     category: text("category").notNull().default(""),
+    orderGroup: text("order_group").notNull().default("other"),
+    orderCap: integer("order_cap").notNull().default(0),
     archived: boolean("archived").notNull().default(false),
     defaultQuantity: integer("default_quantity").notNull().default(0),
     paused: boolean("paused").notNull().default(false),
   },
   (t) => [
     index("menu_canteen").on(t.canteenId),
+    check(
+      "item_order_group",
+      sql`${t.orderGroup} in ('meal','bread','drink','other')`,
+    ),
+    check("item_order_cap", sql`${t.orderCap} between 0 and 6`),
     check("positive_price", sql`${t.price}>0`),
     check("item_mode", sql`${t.mode} in ('ready','made')`),
     check(
@@ -189,6 +196,7 @@ export const units = mint.table(
       .notNull()
       .references(() => stations.id),
     name: text("name").notNull(),
+    orderGroup: text("order_group").notNull().default("other"),
     price: integer("price").notNull(),
     credit: integer("credit").notNull(),
     external: integer("external").notNull(),
@@ -274,15 +282,21 @@ export const invitations = mint.table("invitations", {
   state: text("state").notNull().default("pending"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
-export const events = mint.table("audit_events", {
-  id: id(),
-  actorId: uuid("actor_id"),
-  action: text("action").notNull(),
-  entity: text("entity").notNull(),
-  source: text("source").notNull().unique(),
-  data: jsonb("data").notNull().default({}),
-  createdAt: time("created_at").notNull().defaultNow(),
-});
+export const events = mint.table(
+  "audit_events",
+  {
+    id: id(),
+    actorId: uuid("actor_id"),
+    action: text("action").notNull(),
+    entity: text("entity").notNull(),
+    source: text("source").notNull().unique(),
+    data: jsonb("data").notNull().default({}),
+    createdAt: time("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("audit_entity_action_time").on(t.entity, t.action, t.createdAt),
+  ],
+);
 export const providerEvents = mint.table("provider_events", {
   id: text("id").primaryKey(),
   kind: text("kind").notNull(),

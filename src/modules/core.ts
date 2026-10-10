@@ -44,8 +44,16 @@ export async function scope(
     403,
   );
 }
-export async function atomic<T>(canteen: string, fn: (tx: Tx) => Promise<T>) {
+export async function atomic<T>(
+  canteen: string,
+  fn: (tx: Tx) => Promise<T>,
+  studentId?: string,
+) {
   return db.transaction(async (tx) => {
+    if (studentId)
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${"student-order:" + studentId},0))`,
+      );
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${canteen},0))`,
     );

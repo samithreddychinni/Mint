@@ -759,3 +759,11 @@ The optional Python health monitor is documented in `docs/DEPLOYMENT.md`. It is 
 Category filtering works alongside search/readiness in the student menu. Stock has category and name filters for managers. Switching canteens resets filters. Existing counter assignments are reused. Item categories appear on food cards; pickup passes still identify the actual serving counter.
 
 Migration `0006_young_toxin` adds `category` and `archived` to items. Replaced seed items are archived and excluded from catalogue and dashboard availability. New checkout and manager stock edits reject archived items. Existing units retain paid names, prices, preparation states, batches and passes. The importer uses the normal canteen transaction locks and stable batch IDs, so retries cannot replenish consumed food.
+
+## Student order limits, 11 October 2026
+
+Implemented after user approval: campus-wide active-order and portion quotas, private pickup-history allowances, rolling meal/drink/item usage, scarcity caps, a short checkout-cycle pause, and audited manager review. See `ORDER_LIMITS_PROPOSAL.md` for the exact deployed policy, attribution rules, exclusions and verification limits. This is pickup reliability; the deferred delivery proposal is unchanged.
+
+Keep policy values in `src/lib/order-limits.ts`. Checkout and payment confirmation must take the student advisory lock before the canteen lock, preserve existing-request idempotency, and check quotas when reserving or restoring stock. A late capture must use the existing financial-resolution path if capacity is no longer available. Display names and categories must not determine quota groups. Existing paid pickups remain accessible. Per-item cap editing stays under the manager pencil; serving accounts do not edit caps or review penalties. Zero means automatic and six is the maximum explicit cap.
+
+The compact notice uses `#F6EDF0` paper, `#6E2340` text, 12 px type and 8 px / 12 px padding. It shows order slots, per-order portions and remaining main meals. Item limits use 11 px text. Keep the fixed frame, accessible disabled controls and existing Orders navigation. Account shows private allowance benefits; no public trust score or leaderboard is included.

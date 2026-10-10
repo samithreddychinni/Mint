@@ -70,62 +70,67 @@ export async function applyCaptured(p: ProviderPayment) {
     sql`select * from mint.orders where provider_order=${p.order_id}`,
   );
   insist(o, "PAYMENT_EXCEPTION", "Payment is not linked to a MINT order.");
-  const outcome = await atomic(String(o.canteen_id), async (tx) => {
-    await expireTx(tx, String(o.canteen_id));
-    const current = (await one(
-      tx,
-      sql`select * from mint.orders where id=${o.id} for update`,
-    ))!;
-    if (
-      p.amount !== Number(current.external) ||
-      p.currency !== "INR" ||
-      p.order_id !== current.provider_order
-    ) {
-      await audit(
+  const outcome = await atomic(
+    String(o.canteen_id),
+    async (tx) => {
+      await expireTx(tx, String(o.canteen_id));
+      const current = (await one(
         tx,
-        null,
-        "payment_mismatch",
-        String(current.id),
-        "payment-mismatch:" + p.id,
-        { paymentId: p.id, amount: p.amount, currency: p.currency },
+        sql`select * from mint.orders where id=${o.id} for update`,
+      ))!;
+      if (
+        p.amount !== Number(current.external) ||
+        p.currency !== "INR" ||
+        p.order_id !== current.provider_order
+      ) {
+        await audit(
+          tx,
+          null,
+          "payment_mismatch",
+          String(current.id),
+          "payment-mismatch:" + p.id,
+          { paymentId: p.id, amount: p.amount, currency: p.currency },
+        );
+        return { ...current, paymentMismatch: true };
+      }
+      const previous = await one(
+        tx,
+        sql`select * from mint.payments where id=${p.id}`,
       );
-      return { ...current, paymentMismatch: true };
-    }
-    const previous = await one(
-      tx,
-      sql`select * from mint.payments where id=${p.id}`,
-    );
-    if (previous) {
-      insist(
-        previous.order_id === current.id,
-        "PAYMENT_EXCEPTION",
-        "Payment already belongs to a different order.",
-      );
-      return current;
-    }
-    await tx.execute(
-      sql`insert into mint.payments(id,order_id,amount,status) values(${p.id},${current.id},${p.amount},'captured')`,
-    );
-    let resolution = "";
-    if (current.state === "confirmed") {
-      resolution = "Duplicate captured payment; fulfillment confirmed once";
-    } else if (current.state === "exception") {
-      resolution = "Order already in financial exception";
-    } else if (!(await confirmTx(tx, current, p.id))) {
-      resolution = "Late captured payment could not safely reserve fulfillment";
+      if (previous) {
+        insist(
+          previous.order_id === current.id,
+          "PAYMENT_EXCEPTION",
+          "Payment already belongs to a different order.",
+        );
+        return current;
+      }
       await tx.execute(
-        sql`update mint.orders set state='exception' where id=${current.id}`,
+        sql`insert into mint.payments(id,order_id,amount,status) values(${p.id},${current.id},${p.amount},'captured')`,
       );
-    }
-    if (resolution)
-      await tx.execute(
-        sql`insert into mint.resolutions(order_id,payment_id,amount,reason) values(${current.id},${p.id},${p.amount},${resolution}) on conflict(payment_id) do nothing`,
-      );
-    return (await one(
-      tx,
-      sql`select * from mint.orders where id=${current.id}`,
-    ))!;
-  });
+      let resolution = "";
+      if (current.state === "confirmed") {
+        resolution = "Duplicate captured payment; fulfillment confirmed once";
+      } else if (current.state === "exception") {
+        resolution = "Order already in financial exception";
+      } else if (!(await confirmTx(tx, current, p.id))) {
+        resolution =
+          "Late captured payment could not safely reserve fulfillment";
+        await tx.execute(
+          sql`update mint.orders set state='exception' where id=${current.id}`,
+        );
+      }
+      if (resolution)
+        await tx.execute(
+          sql`insert into mint.resolutions(order_id,payment_id,amount,reason) values(${current.id},${p.id},${p.amount},${resolution}) on conflict(payment_id) do nothing`,
+        );
+      return (await one(
+        tx,
+        sql`select * from mint.orders where id=${current.id}`,
+      ))!;
+    },
+    String(o.payer_id),
+  );
   insist(
     !outcome.paymentMismatch,
     "PAYMENT_EXCEPTION",

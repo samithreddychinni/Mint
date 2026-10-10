@@ -9,6 +9,7 @@ import {
   type Actor,
   type Row,
 } from "./core";
+import { orderLimits } from "./order-limits";
 import { expireTx } from "./orders";
 export async function catalogue() {
   const canteensRead = rows(
@@ -103,7 +104,7 @@ export async function dashboard(a: Actor) {
       invitations: [],
       serverTime: new Date().toISOString(),
     };
-  const [orders, credits, ledger, invitations] = await Promise.all([
+  const [orders, credits, ledger, invitations, limits] = await Promise.all([
     rows(
       db,
       sql`select distinct o.id,o.reference,o.state,o.created_at,o.deadline,o.canteen_id,c.name canteen_name,(o.payer_id=${a.id}) payer,(select jsonb_agg(jsonb_build_object('state',fu.state,'arrived',fu.arrived_at is not null)) from mint.units fu where fu.order_id=o.id and (o.payer_id=${a.id} or fu.collector_id=${a.id})) fulfillment from mint.orders o join mint.canteens c on c.id=o.canteen_id left join mint.units u on u.order_id=o.id where o.payer_id=${a.id} or u.collector_id=${a.id} order by o.created_at desc limit 50`,
@@ -120,9 +121,11 @@ export async function dashboard(a: Actor) {
       db,
       sql`select i.id,i.state,o.reference,o.deadline,p.name sender_name,(select jsonb_agg(jsonb_build_object('name',u.name,'station',s.name)) from mint.units u join mint.stations s on s.id=u.station_id where u.order_id=i.order_id and u.id::text in(select jsonb_object_keys(i.versions))) portions from mint.invitations i join mint.orders o on o.id=i.order_id join mint.profiles p on p.id=i.sender_id where i.recipient_id=${a.id} and i.state='pending'`,
     ),
+    orderLimits(db, a),
   ]);
   return {
     actor: a,
+    limits,
     profile,
     roles: memberships,
     orders,

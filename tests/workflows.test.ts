@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db, connection } from "../src/db";
-import { one, rows, atomic, type Actor } from "../src/modules/core";
+import { one, rows, atomic, type Actor, type Row } from "../src/modules/core";
 import { hold, creditOnly, cancel, expireTx } from "../src/modules/orders";
 import {
   checkIn,
@@ -69,7 +69,7 @@ async function fixture(stock = 20, balance = 100000) {
     made = randomUUID(),
     batch = randomUUID();
   await db.execute(
-    sql`insert into mint.items(id,canteen_id,station_id,name,price,mode) values(${item},${c},${s},'Fixture rice',500,'ready'),(${made},${c},${d},'Fixture dosa',300,'made')`,
+    sql`insert into mint.items(id,canteen_id,station_id,name,price,mode,order_cap) values(${item},${c},${s},'Fixture rice',500,'ready',6),(${made},${c},${d},'Fixture dosa',300,'made',6)`,
   );
   await db.execute(
     sql`insert into mint.batches(id,item_id,total) values(${batch},${item},${stock}),(${randomUUID()},${made},20)`,
@@ -105,6 +105,10 @@ const safeError = (code: string) => (e: unknown) =>
   e instanceof Error && "code" in e && e.code === code;
 test("accepted friend pickup scans and collects with the recipient name, without payer matching", async () => {
   const f = await fixture();
+  f.friend.email = `qa-${f.friend.id}@cb.students.amrita.edu`;
+  await db.execute(
+    sql`update mint.profiles set email=${f.friend.email} where id=${f.friend.id}`,
+  );
   const order = await confirmed(f, 2);
   const before = await portions(order.id);
   const old = (await passes(f.payer, String(order.id)))[0];
@@ -136,6 +140,9 @@ test("accepted friend pickup scans and collects with the recipient name, without
     current.find((unit) => unit.collector_id === f.payer.id)!.state,
     "pending",
   );
+  const { orderLimits } = await import("../src/modules/order-limits");
+  assert.equal((await orderLimits(db, f.friend)).completedDays, 1);
+  assert.equal((await orderLimits(db, f.payer)).completedDays, 0);
   assert.equal(
     current.find((unit) => unit.collector_id === f.payer.id)!.arrived_at,
     null,
@@ -158,6 +165,8 @@ test("manager pencil settings preserve paid snapshots, reject stale edits and re
     note: "Updated menu",
     paused: true,
     defaultQuantity: 15,
+    orderCap: 1,
+    expectedOrderCap: 6,
     expectedSettings: JSON.stringify(["Fixture rice", 500, "", false, 0]),
     reason: "Edit menu defaults",
     key: randomUUID(),
@@ -176,6 +185,22 @@ test("manager pencil settings preserve paid snapshots, reject stale edits and re
   assert.equal(item.price, 700);
   assert.equal(item.paused, true);
   assert.equal(item.default_quantity, 15);
+  assert.equal(item.order_cap, 1);
+  await assert.rejects(
+    manage(f.manager, f.c, "item-settings", {
+      ...settings,
+      key: randomUUID(),
+      orderCap: 2,
+      expectedSettings: JSON.stringify([
+        settings.name,
+        700,
+        settings.note,
+        true,
+        15,
+      ]),
+    }),
+    safeError("ITEM_CHANGED"),
+  );
   const unit = (await portions(order.id))[0];
   assert.equal(unit.name, "Fixture rice");
   assert.equal(unit.price, 500);
@@ -229,13 +254,13 @@ test("profile edits normalize phone, preserve identity and cannot change a peer"
   );
 });
 test("manager stock updates preserve reservations and reject serving staff", async () => {
-  const f = await fixture(10);
+  const f = await fixture(20);
   await confirmed(f, 2);
   await hold(f.payer, cart(f, 1, 0));
   const change = {
     itemId: f.item,
     quantity: 3,
-    expectedAvailable: 7,
+    expectedAvailable: 17,
     reason: "Update online availability",
     key: randomUUID(),
   };
@@ -254,8 +279,8 @@ test("manager stock updates preserve reservations and reject serving staff", asy
   ))!;
   assert.equal(batch.held, 1);
   assert.equal(batch.committed, 2);
-  assert.equal(batch.waste, 4);
-  await hold(f.payer, cart(f, 1, 0));
+  assert.equal(batch.waste, 14);
+  await hold(f.friend, cart(f, 1, 0));
   await manage(f.manager, f.c, "stock", change);
   assert.equal(
     (await one(
@@ -314,23 +339,20 @@ test("manager stock updates add availability once and serialize against checkout
     0,
   );
 });
-test("A04: 100 simultaneous checkouts reserve exactly five portions, no oversell", async () => {
+test("A04: simultaneous students reserve exactly five scarce portions without oversell", async () => {
   const f = await fixture(5);
-  const requests = Array.from({ length: 100 }, () =>
-    hold(f.payer, cart(f, 1, 0)),
+  const students = await Promise.all(
+    Array.from({ length: 12 }, (_, index) =>
+      f.actor("student", "stock-race-" + index),
+    ),
   );
-  const results = await Promise.allSettled(requests);
-  const released = (await one(
-    db,
-    sql`select count(*)::int qty from mint.orders where canteen_id=${f.c} and state='expired'`,
-  ))!.qty;
-  assert.equal(
-    results.filter((r) => r.status === "fulfilled").length,
-    5 + Number(released),
+  const results = await Promise.allSettled(
+    students.map((student) => hold(student, cart(f, 1, 0))),
   );
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 5);
   const b = await one(db, sql`select * from mint.batches where id=${f.batch}`);
-  assert.equal(b!.held, 5);
-  assert.equal(b!.committed, 0);
+  assert.equal(b.held, 5);
+  assert.equal(b.committed, 0);
 });
 test("A05: multi-item stock failure rolls back every hold and credit reservation", async () => {
   const f = await fixture(0);
@@ -1131,9 +1153,12 @@ after(async () => {
 test("manager sales summary uses campus days, separates credit, excludes cancelled favourites and stays scoped", async () => {
   const { managerSummary } = await import("../src/modules/manager-summary");
   const f = await fixture();
+  const old = await confirmed(f);
+  await db.execute(
+    sql`update mint.units set state='collected',collected_at=current_timestamp where order_id=${old.id}`,
+  );
   const today = await confirmed(f, 3);
   const yesterday = await confirmed(f);
-  const old = await confirmed(f);
   const todayUnits = await portions(today.id);
   await cancel(f.payer, String(today.id), [String(todayUnits[0].id)]);
   await db.execute(
@@ -1254,4 +1279,275 @@ test("archived menu items reject new purchases and stock edits without breaking 
   );
   assert.equal((await portions(order.id))[0].state, "collected");
   assert.equal((await orderView(f.payer, String(order.id))).order.total, 500);
+});
+
+test("campus-wide quotas serialize different-canteen checkout and preserve retries", async () => {
+  const first = await fixture(30),
+    second = await fixture(30),
+    third = await fixture(30);
+  for (const f of [second, third])
+    await db.execute(
+      sql`insert into mint.credit_accounts(user_id,canteen_id,available) values(${first.payer.id},${f.c},100000)`,
+    );
+  const carts = [first, second, third].map((f) => cart(f));
+  const results = await Promise.allSettled(
+    carts.map((c) => hold(first.payer, c)),
+  );
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 2);
+  const failed = results.find(
+    (r) => r.status === "rejected",
+  ) as PromiseRejectedResult;
+  assert.ok(safeError("ACTIVE_ORDER_LIMIT")(failed.reason));
+  const winning = results.findIndex((r) => r.status === "fulfilled");
+  const again = await hold(first.payer, carts[winning]);
+  assert.equal(
+    again.id,
+    (results[winning] as PromiseFulfilledResult<Row>).value.id,
+  );
+  const held = await one(
+    db,
+    sql`select sum(b.held)::int held from mint.batches b where b.item_id in(${first.item},${second.item},${third.item})`,
+  );
+  assert.equal(held.held, 2);
+  await db.execute(
+    sql`update mint.orders set hold_until=clock_timestamp()-interval '1 second' where payer_id=${first.payer.id} and state='pending'`,
+  );
+  const retry = await hold(first.payer, { ...carts[0], key: randomUUID() });
+  assert.equal(retry.state, "pending");
+});
+
+test("meal variants and recent collections share quotas while bread and scarce-item caps remain bounded", async () => {
+  const f = await fixture(30);
+  await db.execute(
+    sql`update mint.items set order_group='meal',order_cap=6 where id in(${f.item},${f.made})`,
+  );
+  const order = await confirmed(f, 2);
+  await assert.rejects(
+    hold(f.payer, {
+      ...cart(f),
+      lines: [{ itemId: f.made, price: 300, quantity: 1 }],
+      credit: 300,
+    }),
+    safeError("MEAL_QUANTITY_LIMIT"),
+  );
+  const pass = (await passes(f.payer, String(order.id)))[0];
+  const scan = await resolvePass(f.staff, pass.token, f.s);
+  await handover(
+    f.staff,
+    f.s,
+    scan.units.map((u) => ({ id: String(u.id), version: Number(u.version) })),
+    randomUUID(),
+  );
+  await assert.rejects(
+    hold(f.payer, {
+      ...cart(f),
+      lines: [{ itemId: f.made, price: 300, quantity: 1 }],
+      credit: 300,
+    }),
+    safeError("MEAL_QUANTITY_LIMIT"),
+  );
+  await db.execute(
+    sql`update mint.units set collected_at=clock_timestamp()-interval '31 minutes' where order_id=${order.id}`,
+  );
+  const another = await hold(f.payer, {
+    ...cart(f),
+    lines: [{ itemId: f.made, price: 300, quantity: 1 }],
+    credit: 300,
+  });
+  assert.ok(another.id);
+  await db.execute(
+    sql`update mint.items set order_group='bread',order_cap=0 where id=${f.item}`,
+  );
+  const bread = await hold(f.payer, cart(f, 6));
+  assert.ok(bread.id);
+  const scarce = await fixture(10);
+  await assert.rejects(
+    hold(scarce.payer, cart(scarce, 2)),
+    safeError("ITEM_QUANTITY_LIMIT"),
+  );
+  assert.equal(
+    (await one(db, sql`select held from mint.batches where id=${scarce.batch}`))
+      .held,
+    0,
+  );
+});
+
+test("reliability uses collected days, attributes no-shows to the recipient and permits scoped manager review", async () => {
+  const f = await fixture(100);
+  f.payer.email = `qa-${f.payer.id}@cb.students.amrita.edu`;
+  await db.execute(
+    sql`update mint.profiles set email=${f.payer.email} where id=${f.payer.id}`,
+  );
+  for (let day = 1; day <= 5; day++) {
+    const o = await confirmed(f);
+    await db.execute(
+      sql`update mint.units set state='collected',collected_at=clock_timestamp()-${day}*interval '1 day' where order_id=${o.id}`,
+    );
+  }
+  const { orderLimits } = await import("../src/modules/order-limits");
+  assert.equal((await orderLimits(db, f.payer)).tier, "reliable");
+  const today = await confirmed(f);
+  await db.execute(
+    sql`update mint.units set state='collected',collected_at=clock_timestamp() where order_id=${today.id}`,
+  );
+  assert.equal((await orderLimits(db, f.payer)).completedDays, 6);
+  for (let index = 0; index < 3; index++) {
+    const o = await confirmed(f);
+    await db.execute(
+      sql`update mint.orders set deadline=clock_timestamp()-interval '1 second' where id=${o.id}`,
+    );
+    await atomic(f.c, (tx) => expireTx(tx, f.c));
+  }
+  assert.equal((await orderLimits(db, f.payer)).tier, "restricted");
+  assert.equal((await orderLimits(db, f.payer)).completedDays, 5);
+  await assert.rejects(
+    manage(f.staff, f.c, "limits-review", {
+      email: f.payer.email,
+      reason: "Student support review",
+      key: randomUUID(),
+    }),
+    safeError("FORBIDDEN"),
+  );
+  await manage(f.manager, f.c, "limits-review", {
+    email: f.payer.email,
+    reason: "Reviewed pickup incident",
+    key: randomUUID(),
+  });
+  assert.equal((await orderLimits(db, f.payer)).tier, "reliable");
+  // An accepted recipient's no-show does not reduce the payer's reliability.
+  const o = await confirmed(f);
+  const u = (await portions(o.id))[0];
+  const assignment = await invite(
+    f.payer,
+    String(o.id),
+    [String(u.id)],
+    f.friend.email,
+  );
+  await invitationAction(f.friend, String(assignment.id), "accept");
+  await db.execute(
+    sql`update mint.orders set deadline=clock_timestamp()-interval '1 second' where id=${o.id}`,
+  );
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  assert.equal((await orderLimits(db, f.payer)).tier, "reliable");
+});
+
+test("unstarted checkout cycles pause briefly, manager review clears them, and uncertain payments are excluded", async () => {
+  const f = await fixture(30);
+  const { orderLimits } = await import("../src/modules/order-limits");
+  for (let index = 0; index < 3; index++) {
+    const o = await hold(f.payer, cart(f, 1, 0));
+    await db.execute(
+      sql`update mint.orders set hold_until=clock_timestamp()-interval '1 second' where id=${o.id}`,
+    );
+    await atomic(f.c, (tx) => expireTx(tx, f.c));
+  }
+  assert.ok((await orderLimits(db, f.payer)).cooldownUntil);
+  await assert.rejects(hold(f.payer, cart(f)), safeError("ORDER_COOLDOWN"));
+  await manage(f.manager, f.c, "limits-review", {
+    email: f.payer.email,
+    reason: "Reviewed interrupted checkout",
+    key: randomUUID(),
+  });
+  assert.equal((await orderLimits(db, f.payer)).cooldownUntil, null);
+  for (let index = 0; index < 3; index++) {
+    const o = await hold(f.payer, cart(f, 1, 0));
+    await db.execute(
+      sql`update mint.orders set hold_until=clock_timestamp()-interval '1 second',provider_order=${"fixture-provider-" + o.id} where id=${o.id}`,
+    );
+    await atomic(f.c, (tx) => expireTx(tx, f.c));
+  }
+  assert.equal((await orderLimits(db, f.payer)).cooldownUntil, null);
+  assert.ok((await hold(f.payer, cart(f))).id);
+});
+
+test("total, outstanding and drink caps reject before reserving additional stock", async () => {
+  const f = await fixture(30);
+  await assert.rejects(
+    hold(f.payer, cart(f, 7)),
+    safeError("ORDER_QUANTITY_LIMIT"),
+  );
+  await hold(f.payer, cart(f, 6));
+  await assert.rejects(
+    hold(f.payer, {
+      ...cart(f, 5),
+      lines: [{ itemId: f.made, price: 300, quantity: 5 }],
+      credit: 0,
+    }),
+    safeError("OUTSTANDING_LIMIT"),
+  );
+  assert.equal(
+    (await one(db, sql`select held from mint.batches where item_id=${f.made}`))
+      .held,
+    0,
+  );
+  await db.execute(
+    sql`update mint.items set order_group='drink' where id in(${f.item},${f.made})`,
+  );
+  await hold(f.friend, cart(f, 4, 0));
+  await assert.rejects(
+    hold(f.friend, {
+      ...cart(f, 1, 0),
+      lines: [{ itemId: f.made, price: 300, quantity: 1 }],
+    }),
+    safeError("DRINK_QUANTITY_LIMIT"),
+  );
+  assert.equal(
+    (await one(db, sql`select held from mint.batches where item_id=${f.made}`))
+      .held,
+    0,
+  );
+});
+
+test("late captured payment cannot bypass campus-wide capacity and creates one financial resolution", async () => {
+  const f = await fixture(30),
+    other = await fixture(30);
+  const old = await hold(f.payer, cart(f, 1, 0));
+  const provider = "order_fixture" + randomUUID().replaceAll("-", "");
+  await db.execute(
+    sql`update mint.orders set provider_order=${provider},hold_until=clock_timestamp()-interval '1 second' where id=${old.id}`,
+  );
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  await hold(f.payer, cart(f, 1, 0));
+  await hold(f.payer, cart(other, 1, 0));
+  const payment = {
+    id: "pay_fixture" + randomUUID().replaceAll("-", ""),
+    order_id: provider,
+    amount: 500,
+    currency: "INR",
+    status: "captured",
+    captured: true,
+  };
+  await Promise.all([applyCaptured(payment), applyCaptured(payment)]);
+  assert.equal(
+    (await one(db, sql`select state from mint.orders where id=${old.id}`))
+      .state,
+    "exception",
+  );
+  assert.equal(
+    (
+      await one(
+        db,
+        sql`select count(*)::int count from mint.resolutions where order_id=${old.id}`,
+      )
+    ).count,
+    1,
+  );
+  assert.equal(
+    (
+      await one(
+        db,
+        sql`select held,committed from mint.batches where id=${f.batch}`,
+      )
+    ).held,
+    1,
+  );
+  assert.equal(
+    (
+      await one(
+        db,
+        sql`select held,committed from mint.batches where id=${f.batch}`,
+      )
+    ).committed,
+    0,
+  );
 });

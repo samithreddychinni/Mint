@@ -11,6 +11,8 @@ const menu = JSON.parse(readFileSync("data/campus-menu.json", "utf8")) as {
   mode: string;
   quantity: number;
   estimatedPrice: boolean;
+  orderGroup: string;
+  orderCap: number;
 }[];
 test("campus replacement preserves all items, canteen prices and supplied categories", () => {
   assert.equal(menu.length, 233);
@@ -35,6 +37,13 @@ test("campus replacement preserves all items, canteen prices and supplied catego
     assert.ok(["Main course", "Drinks", "Tiffin"].includes(item.station));
     assert.ok(["ready", "made"].includes(item.mode));
     assert.ok(item.category);
+    assert.ok(["meal", "bread", "drink", "other"].includes(item.orderGroup));
+    assert.ok(
+      Number.isInteger(item.orderCap) &&
+        item.orderCap >= 0 &&
+        item.orderCap <= 6,
+    );
+    if (/biriyani/i.test(item.name)) assert.equal(item.orderGroup, "meal");
   }
   for (const [canteen, name, price] of [
     ["Main", "Veg Biriyani", 6500],

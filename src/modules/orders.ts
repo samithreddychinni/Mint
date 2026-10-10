@@ -13,6 +13,8 @@ import {
   type Actor,
   type Row,
 } from "./core";
+import { orderLimits } from "./order-limits";
+import { itemAllowance } from "../lib/order-limits";
 import { account, move } from "./credits";
 import { insist } from "../lib/errors";
 export type Cart = {
@@ -131,144 +133,200 @@ export async function cancelUnit(
 export async function hold(a: Actor, cart: Cart) {
   student(a);
   const requestHash = hash(JSON.stringify({ ...cart, key: undefined }));
-  return atomic(cart.canteenId, async (tx) => {
-    await expireTx(tx, cart.canteenId);
-    const prior = await one(
-      tx,
-      sql`select * from mint.orders where request_key=${a.id + ":" + cart.key}`,
-    );
-    if (prior) {
-      insist(
-        prior.request_hash === requestHash,
-        "IDEMPOTENCY_CONFLICT",
-        "Use a new checkout request for a changed cart.",
+  return atomic(
+    cart.canteenId,
+    async (tx) => {
+      await expireTx(tx, cart.canteenId);
+      const prior = await one(
+        tx,
+        sql`select * from mint.orders where request_key=${a.id + ":" + cart.key}`,
       );
-      return prior;
-    }
-    const c = await one(
-      tx,
-      sql`select * from mint.canteens where id=${cart.canteenId}`,
-    );
-    insist(
-      c && !c.paused,
-      "ORDERING_PAUSED",
-      "This canteen is not accepting new orders.",
-    );
-    insist(
-      cart.lines.reduce((sum, l) => sum + l.quantity, 0) <= 100 &&
-        cart.lines.length > 0 &&
-        cart.lines.length <= 20 &&
-        new Set(cart.lines.map((l) => l.itemId)).size === cart.lines.length,
-      "INVALID_CART",
-      "Choose distinct menu items.",
-      400,
-    );
-    let total = 0;
-    const portions: { item: Row; batch: string }[] = [];
-    for (const line of [...cart.lines].sort((a, b) =>
-      a.itemId.localeCompare(b.itemId),
-    )) {
+      if (prior) {
+        insist(
+          prior.request_hash === requestHash,
+          "IDEMPOTENCY_CONFLICT",
+          "Use a new checkout request for a changed cart.",
+        );
+        return prior;
+      }
+      const policy = await orderLimits(tx, a);
+      const quantity = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
       insist(
-        Number.isInteger(line.quantity) &&
-          line.quantity > 0 &&
-          line.quantity <= 20,
-        "INVALID_QUANTITY",
-        "Quantity must be between 1 and 20.",
+        !policy.cooldownUntil,
+        "ORDER_COOLDOWN",
+        `Several checkouts were abandoned. Try again after ${policy.cooldownUntil ? new Date(policy.cooldownUntil).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) : "a short break"}. Your existing pickups remain available.`,
+      );
+      insist(
+        policy.usage.activeOrders < policy.limits.activeOrders,
+        "ACTIVE_ORDER_LIMIT",
+        `You have ${policy.usage.activeOrders} active orders. Your limit is ${policy.limits.activeOrders}. Open Orders to finish a pickup or resume payment.`,
+      );
+      insist(
+        quantity <= policy.limits.perOrder,
+        "ORDER_QUANTITY_LIMIT",
+        `Your current limit is ${policy.limits.perOrder} total portions per order. Remove some items to continue.`,
+      );
+      insist(
+        policy.usage.outstanding + quantity <= policy.limits.outstanding,
+        "OUTSTANDING_LIMIT",
+        `You can reserve ${policy.limits.outstanding} portions across active orders. You already have ${policy.usage.outstanding}. Collect your existing food or reduce this cart.`,
+      );
+      let meals = 0,
+        drinks = 0;
+      const c = await one(
+        tx,
+        sql`select * from mint.canteens where id=${cart.canteenId}`,
+      );
+      insist(
+        c && !c.paused,
+        "ORDERING_PAUSED",
+        "This canteen is not accepting new orders.",
+      );
+      insist(
+        cart.lines.reduce((sum, l) => sum + l.quantity, 0) <= 100 &&
+          cart.lines.length > 0 &&
+          cart.lines.length <= 20 &&
+          new Set(cart.lines.map((l) => l.itemId)).size === cart.lines.length,
+        "INVALID_CART",
+        "Choose distinct menu items.",
         400,
       );
-      const item = await one(
-        tx,
-        sql`select i.*,s.paused station_paused,(select coalesce(sum(total-held-committed-waste),0) from mint.batches where item_id=i.id)::int available from mint.items i join mint.stations s on s.id=i.station_id where i.id=${line.itemId} and i.canteen_id=${cart.canteenId}`,
-      );
-      insist(
-        item && !item.archived && !item.paused && !item.station_paused,
-        "STOCK_UNAVAILABLE",
-        "This item is unavailable.",
-      );
-      insist(
-        item.price === line.price,
-        "PRICE_CHANGED",
-        "The menu price changed. Review the refreshed cart before checkout.",
-      );
-      insist(
-        Number(item.available) >= line.quantity,
-        "STOCK_UNAVAILABLE",
-        "Stock changed. Refresh the menu and update your cart.",
-      );
-      let remaining = line.quantity;
-      const batches = await rows(
-        tx,
-        sql`select *,total-held-committed-waste available from mint.batches where item_id=${line.itemId} order by created_at,id for update`,
-      );
-      for (const b of batches) {
-        const qty = Math.min(Number(b.available), remaining);
-        if (qty) {
-          await tx.execute(
-            sql`update mint.batches set held=held+${qty} where id=${b.id}`,
-          );
-          for (let i = 0; i < qty; i++)
-            portions.push({ item, batch: String(b.id) });
-          remaining -= qty;
+      let total = 0;
+      const portions: { item: Row; batch: string }[] = [];
+      for (const line of [...cart.lines].sort((a, b) =>
+        a.itemId.localeCompare(b.itemId),
+      )) {
+        insist(
+          Number.isInteger(line.quantity) &&
+            line.quantity > 0 &&
+            line.quantity <= 20,
+          "INVALID_QUANTITY",
+          "Quantity must be between 1 and 20.",
+          400,
+        );
+        const item = await one(
+          tx,
+          sql`select i.*,s.paused station_paused,(select coalesce(sum(total-held-committed-waste),0) from mint.batches where item_id=i.id)::int available from mint.items i join mint.stations s on s.id=i.station_id where i.id=${line.itemId} and i.canteen_id=${cart.canteenId}`,
+        );
+        insist(
+          item && !item.archived && !item.paused && !item.station_paused,
+          "STOCK_UNAVAILABLE",
+          "This item is unavailable.",
+        );
+        insist(
+          item.price === line.price,
+          "PRICE_CHANGED",
+          "The menu price changed. Review the refreshed cart before checkout.",
+        );
+        insist(
+          Number(item.available) >= line.quantity,
+          "STOCK_UNAVAILABLE",
+          "Stock changed. Refresh the menu and update your cart.",
+        );
+        const itemLimit = itemAllowance(
+          {
+            order_group: String(item.order_group),
+            order_cap: Number(item.order_cap),
+            available: Number(item.available),
+          },
+          policy,
+        );
+        insist(
+          (policy.usage.byItem[line.itemId] || 0) + line.quantity <= itemLimit,
+          "ITEM_QUANTITY_LIMIT",
+          `${item.name}: up to ${itemLimit} portions across pending pickups and the last 30 minutes. Reduce this quantity or wait for your allowance to reset.`,
+        );
+        if (item.order_group === "meal") meals += line.quantity;
+        if (item.order_group === "drink") drinks += line.quantity;
+        insist(
+          policy.usage.meals + meals <= policy.limits.meals,
+          "MEAL_QUANTITY_LIMIT",
+          `Your main-meal allowance is ${policy.limits.meals} across all canteens, including recent pickups. Biryani and other meal variants share this allowance.`,
+        );
+        insist(
+          policy.usage.drinks + drinks <= policy.limits.drinks,
+          "DRINK_QUANTITY_LIMIT",
+          `Your drink allowance is ${policy.limits.drinks} across all canteens, including recent pickups. Reduce drinks or wait for your allowance to reset.`,
+        );
+        let remaining = line.quantity;
+        const batches = await rows(
+          tx,
+          sql`select *,total-held-committed-waste available from mint.batches where item_id=${line.itemId} order by created_at,id for update`,
+        );
+        for (const b of batches) {
+          const qty = Math.min(Number(b.available), remaining);
+          if (qty) {
+            await tx.execute(
+              sql`update mint.batches set held=held+${qty} where id=${b.id}`,
+            );
+            for (let i = 0; i < qty; i++)
+              portions.push({ item, batch: String(b.id) });
+            remaining -= qty;
+          }
         }
+        insist(
+          remaining === 0,
+          "STOCK_UNAVAILABLE",
+          "Stock changed. Refresh the menu and update your cart.",
+        );
+        total += Number(item.price) * line.quantity;
       }
       insist(
-        remaining === 0,
-        "STOCK_UNAVAILABLE",
-        "Stock changed. Refresh the menu and update your cart.",
+        Number.isInteger(cart.credit) &&
+          cart.credit >= 0 &&
+          cart.credit <= total,
+        "INVALID_CREDIT",
+        "Credit must be integer paise within the total.",
+        400,
       );
-      total += Number(item.price) * line.quantity;
-    }
-    insist(
-      Number.isInteger(cart.credit) && cart.credit >= 0 && cart.credit <= total,
-      "INVALID_CREDIT",
-      "Credit must be integer paise within the total.",
-      400,
-    );
-    const ac = await account(tx, a.id, cart.canteenId);
-    insist(
-      Number(ac.available) >= cart.credit,
-      "CREDIT_UNAVAILABLE",
-      "Not enough same-canteen credit.",
-    );
-    const id = randomUUID();
-    const order = await one(
-      tx,
-      sql`insert into mint.orders(id,reference,payer_id,canteen_id,total,credit,external,request_key,request_hash,hold_until) values(${id},${"M" + secret().slice(0, 8).toUpperCase()},${a.id},${cart.canteenId},${total},${cart.credit},${total - cart.credit},${a.id + ":" + cart.key},${requestHash},clock_timestamp()+interval '3 minutes') returning *`,
-    );
-    if (cart.credit)
-      await move(
+      const ac = await account(tx, a.id, cart.canteenId);
+      insist(
+        Number(ac.available) >= cart.credit,
+        "CREDIT_UNAVAILABLE",
+        "Not enough same-canteen credit.",
+      );
+      const id = randomUUID();
+      const order = await one(
         tx,
-        a,
-        a.id,
-        cart.canteenId,
-        -cart.credit,
-        cart.credit,
-        "reserve:" + id,
-        "Credit reserved for checkout",
-        id,
+        sql`insert into mint.orders(id,reference,payer_id,canteen_id,total,credit,external,request_key,request_hash,hold_until) values(${id},${"M" + secret().slice(0, 8).toUpperCase()},${a.id},${cart.canteenId},${total},${cart.credit},${total - cart.credit},${a.id + ":" + cart.key},${requestHash},clock_timestamp()+interval '3 minutes') returning *`,
       );
-    let allocated = 0;
-    let cumulative = 0;
-    const unitValues = portions.map((p) => {
-      cumulative += Number(p.item.price);
-      const next = Math.floor((cumulative * cart.credit) / total);
-      const credit = next - allocated;
-      allocated = next;
-      return sql`(${id},${p.item.id},${p.batch},${p.item.station_id},${p.item.name},${p.item.price},${credit},${Number(p.item.price) - credit},${p.item.mode},${a.id},${secret().slice(0, 10).toUpperCase()})`;
-    });
-    await tx.execute(
-      sql`insert into mint.units(order_id,item_id,batch_id,station_id,name,price,credit,external,mode,collector_id,token) values ${sql.join(unitValues, sql`,`)}`,
-    );
-    for (const batch of new Set(portions.map((p) => p.batch)))
+      if (cart.credit)
+        await move(
+          tx,
+          a,
+          a.id,
+          cart.canteenId,
+          -cart.credit,
+          cart.credit,
+          "reserve:" + id,
+          "Credit reserved for checkout",
+          id,
+        );
+      let allocated = 0;
+      let cumulative = 0;
+      const unitValues = portions.map((p) => {
+        cumulative += Number(p.item.price);
+        const next = Math.floor((cumulative * cart.credit) / total);
+        const credit = next - allocated;
+        allocated = next;
+        return sql`(${id},${p.item.id},${p.batch},${p.item.station_id},${p.item.name},${p.item.price},${credit},${Number(p.item.price) - credit},${p.item.mode},${p.item.order_group},${a.id},${secret().slice(0, 10).toUpperCase()})`;
+      });
       await tx.execute(
-        sql`insert into mint.stock_events(batch_id,quantity,kind,source,actor_id) values(${batch},${portions.filter((p) => p.batch === batch).length},'hold',${"hold:" + id + ":" + batch},${a.id})`,
+        sql`insert into mint.units(order_id,item_id,batch_id,station_id,name,price,credit,external,mode,order_group,collector_id,token) values ${sql.join(unitValues, sql`,`)}`,
       );
-    await audit(tx, a, "checkout", id, "checkout:" + id, {
-      total,
-      credit: cart.credit,
-    });
-    return order!;
-  });
+      for (const batch of new Set(portions.map((p) => p.batch)))
+        await tx.execute(
+          sql`insert into mint.stock_events(batch_id,quantity,kind,source,actor_id) values(${batch},${portions.filter((p) => p.batch === batch).length},'hold',${"hold:" + id + ":" + batch},${a.id})`,
+        );
+      await audit(tx, a, "checkout", id, "checkout:" + id, {
+        total,
+        credit: cart.credit,
+        limitsTier: policy.tier,
+      });
+      return order!;
+    },
+    a.id,
+  );
 }
 export async function confirmTx(tx: Tx, o: Row, paymentId: string | null) {
   const quantities = await rows(
@@ -280,6 +338,40 @@ export async function confirmTx(tx: Tx, o: Row, paymentId: string | null) {
     new Date(String(o.hold_until)).getTime() <= Date.parse(await now(tx));
   if (late && o.state === "pending") await expireTx(tx, String(o.canteen_id));
   if (late) {
+    const payer = await one(
+      tx,
+      sql`select id,email,kind from mint.profiles where id=${o.payer_id}`,
+    );
+    const policy = await orderLimits(tx, payer as Actor);
+    const items = await rows(
+      tx,
+      sql`select u.item_id,u.order_group,count(*)::int quantity,i.order_cap,(select coalesce(sum(total-held-committed-waste),0)::int from mint.batches where item_id=i.id) available from mint.units u join mint.items i on i.id=u.item_id where u.order_id=${o.id} group by u.item_id,u.order_group,i.id`,
+    );
+    const quantity = items.reduce((sum, i) => sum + Number(i.quantity), 0);
+    const groupQuantity = (group: string) =>
+      items
+        .filter((i) => i.order_group === group)
+        .reduce((sum, i) => sum + Number(i.quantity), 0);
+    if (
+      policy.usage.activeOrders >= policy.limits.activeOrders ||
+      quantity > policy.limits.perOrder ||
+      policy.usage.outstanding + quantity > policy.limits.outstanding ||
+      policy.usage.meals + groupQuantity("meal") > policy.limits.meals ||
+      policy.usage.drinks + groupQuantity("drink") > policy.limits.drinks ||
+      items.some(
+        (i) =>
+          (policy.usage.byItem[String(i.item_id)] || 0) + Number(i.quantity) >
+          itemAllowance(
+            {
+              order_group: String(i.order_group),
+              order_cap: Number(i.order_cap),
+              available: Number(i.available),
+            },
+            policy,
+          ),
+      )
+    )
+      return false;
     const ac = await account(tx, String(o.payer_id), String(o.canteen_id));
     if (Number(ac.available) < Number(o.credit)) return false;
     const c = await one(
@@ -343,22 +435,26 @@ export async function creditOnly(a: Actor, id: string) {
   );
   insist(o, "FORBIDDEN", "This checkout does not belong to you.", 403);
   insist(o.external === 0, "PAYMENT_REQUIRED", "External payment is required.");
-  return atomic(String(o.canteen_id), async (tx) => {
-    const current = (await one(
-      tx,
-      sql`select * from mint.orders where id=${id} for update`,
-    ))!;
-    if (current.state === "confirmed") return current;
-    insist(
-      current.state === "pending" &&
-        new Date(String(current.hold_until)).getTime() >
-          Date.parse(await now(tx)),
-      "HOLD_EXPIRED",
-      "Checkout expired. Start a new order.",
-    );
-    await confirmTx(tx, current, null);
-    return (await one(tx, sql`select * from mint.orders where id=${id}`))!;
-  });
+  return atomic(
+    String(o.canteen_id),
+    async (tx) => {
+      const current = (await one(
+        tx,
+        sql`select * from mint.orders where id=${id} for update`,
+      ))!;
+      if (current.state === "confirmed") return current;
+      insist(
+        current.state === "pending" &&
+          new Date(String(current.hold_until)).getTime() >
+            Date.parse(await now(tx)),
+        "HOLD_EXPIRED",
+        "Checkout expired. Start a new order.",
+      );
+      await confirmTx(tx, current, null);
+      return (await one(tx, sql`select * from mint.orders where id=${id}`))!;
+    },
+    a.id,
+  );
 }
 export async function cancel(
   a: Actor,

@@ -1,4 +1,9 @@
 "use client";
+import {
+  itemAllowance,
+  LIMIT_TIERS,
+  type OrderLimits,
+} from "@/lib/order-limits";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -59,6 +64,8 @@ type Station = {
   paused: boolean;
 };
 type Item = {
+  order_group?: string;
+  order_cap?: number;
   category?: string;
   id: string;
   name: string;
@@ -137,6 +144,7 @@ type Ledger = {
   canteen_name: string;
 };
 type Me = {
+  limits?: OrderLimits;
   actor: { id: string; email: string; kind: string };
   profile?: Profile;
   roles: Role[];
@@ -528,7 +536,17 @@ export function MintApp() {
       );
       if (
         e instanceof ApiError &&
-        ["PRICE_CHANGED", "STOCK_CHANGED"].includes(e.code)
+        [
+          "PRICE_CHANGED",
+          "STOCK_CHANGED",
+          "ACTIVE_ORDER_LIMIT",
+          "ORDER_QUANTITY_LIMIT",
+          "OUTSTANDING_LIMIT",
+          "ITEM_QUANTITY_LIMIT",
+          "MEAL_QUANTITY_LIMIT",
+          "DRINK_QUANTITY_LIMIT",
+          "ORDER_COOLDOWN",
+        ].includes(e.code)
       ) {
         if (e.code === "PRICE_CHANGED") setPriceChanged(true);
         await refreshCurrent.current();
@@ -868,7 +886,70 @@ export function MintApp() {
   const activeOrders = (me?.orders || []).filter(
     (o) => o.state === "confirmed" && !isClosed(o.fulfillment || []),
   );
+  const policy: OrderLimits = me?.limits || {
+    tier: "standard",
+    limits: LIMIT_TIERS.standard,
+    usage: { activeOrders: 0, outstanding: 0, meals: 0, drinks: 0, byItem: {} },
+    completedDays: 0,
+    cooldownUntil: null,
+  };
+  const cartLimitReason = (add?: Item) => {
+    if (policy.cooldownUntil && Date.parse(policy.cooldownUntil) > now + offset)
+      return `A short checkout pause ends at ${time(policy.cooldownUntil)}. Existing pickups are available.`;
+    if (policy.usage.activeOrders >= policy.limits.activeOrders)
+      return `You have ${policy.usage.activeOrders} active orders. Open Orders to finish a pickup or resume payment.`;
+    const count = cartCount + (add ? 1 : 0);
+    if (count > policy.limits.perOrder)
+      return `Up to ${policy.limits.perOrder} portions per order. Remove an item to add something else.`;
+    if (policy.usage.outstanding + count > policy.limits.outstanding)
+      return `Up to ${policy.limits.outstanding} portions across active orders. Collect existing food first.`;
+    let meals = 0,
+      drinks = 0;
+    for (const item of menus) {
+      const quantity =
+        (cart[item.id]?.quantity || 0) + (add?.id === item.id ? 1 : 0);
+      if (!quantity) continue;
+      const cap = itemAllowance(item, policy);
+      if ((policy.usage.byItem[item.id] || 0) + quantity > cap)
+        return `${item.name}: up to ${cap} portions including pending and recent pickups.`;
+      if (item.order_group === "meal") meals += quantity;
+      if (item.order_group === "drink") drinks += quantity;
+    }
+    if (policy.usage.meals + meals > policy.limits.meals)
+      return `Main-meal allowance: ${policy.limits.meals} across all canteens, including pickups in the last 30 minutes.`;
+    if (policy.usage.drinks + drinks > policy.limits.drinks)
+      return `Drink allowance: ${policy.limits.drinks} across all canteens, including recent pickups.`;
+    return "";
+  };
+  const limitNotice = (
+    <div className="order-limit-notice">
+      <span>
+        {Math.max(0, policy.limits.activeOrders - policy.usage.activeOrders)}{" "}
+        order slots · Up to {policy.limits.perOrder} portions per order ·{" "}
+        {Math.max(0, policy.limits.meals - policy.usage.meals)} main meals left
+      </span>
+      {(cartLimitReason() || policy.tier === "restricted") && (
+        <p role="status">
+          {cartLimitReason() ||
+            "A temporary smaller allowance applies after missed pickups. Two successful pickup days restore your normal allowance; a manager can review it."}
+        </p>
+      )}
+      {(policy.usage.activeOrders >= policy.limits.activeOrders ||
+        policy.cooldownUntil) && (
+        <Button variant="ghost" onClick={() => setTab("orders")}>
+          Open Orders <ArrowRight />
+        </Button>
+      )}
+    </div>
+  );
   const changeQuantity = (item: Item, delta: number) => {
+    if (delta > 0) {
+      const reason = cartLimitReason(item);
+      if (reason) {
+        setMessage(reason);
+        return;
+      }
+    }
     setCart((current) => {
       const next = { ...current };
       const quantity = (next[item.id]?.quantity || 0) + delta;
@@ -1311,6 +1392,7 @@ export function MintApp() {
                   </Button>
                   {categorySelect}
                 </div>
+                {limitNotice}
                 {!catalogue.serverTime ? (
                   <div className="empty-state">Loading the menu…</div>
                 ) : filteredMenu.length === 0 ? (
@@ -1359,6 +1441,10 @@ export function MintApp() {
                                   : "Ordering paused"
                                 : `${item.available} available`}
                             </p>
+                            <p className="item-order-limit">
+                              Up to {itemAllowance(item, policy)} per student ·
+                              recent pickups count
+                            </p>
                             <div className="food-purchase">
                               <strong className="money">
                                 {money(item.price)}
@@ -1386,8 +1472,10 @@ export function MintApp() {
                                   size="icon"
                                   variant="ghost"
                                   aria-label={`Add ${item.name}`}
+                                  title={cartLimitReason(item) || undefined}
                                   disabled={
                                     disabled ||
+                                    !!cartLimitReason(item) ||
                                     unavailable ||
                                     (cart[item.id]?.quantity || 0) >=
                                       Math.min(20, item.available)
@@ -1435,6 +1523,7 @@ export function MintApp() {
                   />
                 ) : (
                   <div className="checkout-grid">
+                    {limitNotice}
                     <section className="paper">
                       <h2>
                         Your bag <span className="menu-count">{cartCount}</span>
@@ -1472,6 +1561,7 @@ export function MintApp() {
                                       aria-label={`Increase ${item.name}`}
                                       disabled={
                                         disabled ||
+                                        !!cartLimitReason(item) ||
                                         item.paused ||
                                         item.station_paused ||
                                         c?.paused ||
@@ -1563,7 +1653,12 @@ export function MintApp() {
                         </div>
                         <Button
                           className="primary-action"
-                          disabled={disabled || priceChanged || c?.paused}
+                          disabled={
+                            disabled ||
+                            priceChanged ||
+                            c?.paused ||
+                            !!cartLimitReason()
+                          }
                           onClick={() =>
                             void run(async () => {
                               checkoutKey.current ||= crypto.randomUUID();
@@ -2275,6 +2370,24 @@ export function MintApp() {
                     <ChevronRight />
                   </button>
                 )}
+                {student && (
+                  <section className="paper stack">
+                    <h2>Your ordering allowance</h2>
+                    <p>
+                      {policy.tier === "restricted"
+                        ? "Temporary smaller allowance"
+                        : `${policy.tier[0].toUpperCase() + policy.tier.slice(1)} pickup allowance`}
+                    </p>
+                    {limitNotice}
+                    <p className="help-text">
+                      Five successful pickup days unlock larger orders; 20
+                      unlock the highest allowance, with at least 90% successful
+                      pickup days in the last 90 days. Failed payments and
+                      kitchen delays do not lower it. Ask a canteen manager to
+                      review a restriction.
+                    </p>
+                  </section>
+                )}
                 <section className="paper stack">
                   <h2>A little help</h2>
                   <p className="help-text">
@@ -2745,6 +2858,54 @@ export function MintApp() {
                 {canteenSelect("manager")}
                 {canManage ? (
                   <section className="stack">
+                    <details className="paper limits-review">
+                      <summary>Review a student’s ordering restriction</summary>
+                      <form
+                        className="stack"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = new FormData(e.currentTarget);
+                          void run(
+                            () =>
+                              api(`manager/${canteen}`, {
+                                action: "limits-review",
+                                email: String(form.get("email"))
+                                  .trim()
+                                  .toLowerCase(),
+                                reason: String(form.get("reason")),
+                              }),
+                            "Restriction reviewed. Recent penalties cleared; quantity and stock caps remain.",
+                          );
+                        }}
+                      >
+                        <label className="field">
+                          Student university email
+                          <Input
+                            type="email"
+                            name="email"
+                            required
+                            disabled={disabled}
+                          />
+                        </label>
+                        <label className="field">
+                          Review reason
+                          <Input
+                            name="reason"
+                            required
+                            minLength={3}
+                            maxLength={300}
+                            disabled={disabled}
+                          />
+                        </label>
+                        <Button disabled={disabled}>
+                          Clear recent penalties
+                        </Button>
+                        <p className="help-text">
+                          Only students with order history in your assigned
+                          canteen. This does not grant unlimited ordering.
+                        </p>
+                      </form>
+                    </details>
                     <p className="help-text">
                       Existing reservations stay protected. Enter the portions
                       available for new online orders.
@@ -2898,6 +3059,8 @@ export function MintApp() {
   );
 }
 type ItemSettings = {
+  orderCap: number;
+  expectedOrderCap: number;
   name: string;
   price: number;
   note: string;
@@ -2927,6 +3090,8 @@ function StockEditor({
     note: item.note,
     paused: item.paused,
     defaultQuantity: String(item.default_quantity ?? 0),
+    orderCap: String(item.order_cap ?? 0),
+    expectedOrderCap: item.order_cap ?? 0,
     expectedSettings: "",
   });
   const changed = quantity !== null && Number(quantity) !== item.available;
@@ -2956,6 +3121,8 @@ function StockEditor({
                 note: item.note,
                 paused: item.paused,
                 defaultQuantity: String(item.default_quantity ?? 0),
+                orderCap: String(item.order_cap ?? 0),
+                expectedOrderCap: item.order_cap ?? 0,
                 expectedSettings: JSON.stringify([
                   item.name,
                   item.price,
@@ -3039,6 +3206,7 @@ function StockEditor({
                 name: draft.name.trim(),
                 price: Math.round(Number(draft.price) * 100),
                 defaultQuantity: Number(draft.defaultQuantity),
+                orderCap: Number(draft.orderCap),
               });
               setEditing(false);
             }, "Item details updated.");
@@ -3083,6 +3251,23 @@ function StockEditor({
               }
               disabled={disabled}
             />
+          </label>
+          <label className="field">
+            Per-student item cap
+            <Input
+              type="number"
+              min={0}
+              max={6}
+              step={1}
+              required
+              disabled={disabled}
+              value={draft.orderCap}
+              onChange={(e) => setDraft({ ...draft, orderCap: e.target.value })}
+            />
+            <span className="help-text">
+              0 uses the normal tier or bread allowance. 1–6 sets a product cap.
+              Meal, total and scarce-stock limits still apply.
+            </span>
           </label>
           <label className="credit-toggle">
             <input

@@ -1,81 +1,52 @@
-# Student order limits proposal
+# Student order limits
 
-Status: proposed policy for discussion. No live limits or trust scores have changed. This proposal applies to existing pickup ordering. Campus delivery remains deferred.
+Status: implementation approved and completed on 11 October 2026. Release verification is recorded in `docs/DEPLOYMENT.md`. These rules apply to pickup ordering. Campus delivery remains future scope.
 
-## Current gap
+## Allowances
 
-Checkout permits 20 portions per item, 20 distinct items and 100 total portions. It accepts up to 30 checkout requests per minute per student. There is no active-order quota. Separate requests, different biryani variants, or different canteens can bypass the intent of an individual-order quantity limit.
+All limits apply to the payer across Main, IT and MBA, including portions assigned to friends. A portion is one menu selling unit, not its weight or the number of people it feeds.
 
-## Recommended starting limits
+| Private allowance      | Active orders | Portions per order | Outstanding portions | Main meals | Drinks | Default same item |
+| ---------------------- | ------------: | -----------------: | -------------------: | ---------: | -----: | ----------------: |
+| Standard               |             2 |                  6 |                   10 |          2 |      4 |                 2 |
+| Reliable               |             2 |                  8 |                   14 |          3 |      6 |                 3 |
+| Established            |             3 |                 10 |                   18 |          4 |      8 |                 4 |
+| Temporarily restricted |             1 |                  4 |                    4 |          1 |      2 |                 1 |
 
-| Student level  | Active orders, campus-wide | Total portions per order | Main-meal portions across active orders and the last 30 minutes |
-| -------------- | -------------------------- | ------------------------ | --------------------------------------------------------------- |
-| New / standard | 2                          | 6                        | 2                                                               |
-| Reliable       | 2                          | 8                        | 3                                                               |
-| Established    | 3                          | 10                       | 4                                                               |
+Main-meal, drink and same-item limits count outstanding portions plus portions collected in the previous 30 minutes. Collecting and immediately ordering again does not reset these limits. A portion counts once. Cancelled and expired portions release capacity. Stock availability and preparation permissions always apply.
 
-These values need product review before implementation. They are not campus policy or measured capacity requirements.
+The main-meal group includes biryanis, rice meals, dosa/roast/tiffin meals, burgers and tandoori chicken. Boiled eggs, egg roast sides, curries, snacks and ice creams use `other`. Single-piece chapathi, parotta, batura, naan and roti use `bread`. Drinks use `drink`; curd and yogurt use `other`. Exact classifications are in `data/campus-menu.json`. Groups are stable metadata, independent of editable names and categories, and are copied to order portions at reservation.
 
-Use a default same-item cap of two per order, rising to three for reliable students and four for established students. Product exceptions are necessary: single-piece chapathi/parotta can allow six pieces within the total order cap, while low-stock specials should remain capped at one. Keep exceptions manager-configurable within hard safety bounds. Never let a trust tier remove all limits.
+Bread allows up to six pieces inside the total order limit. Tandoori chicken has a one-per-item exception; full, half and quarter still share the main-meal limit. Managers can set a per-item cap from zero (automatic) to six from the pencil editor. This never raises meal, drink, outstanding or order limits. Restricted students have a one-per-item ceiling. When ten or fewer physical portions remain, every tier has a one-per-item ceiling, including outstanding and recent pickups. Existing accepted reservations remain valid.
 
-Main meals need a stable server-side product group. All biryani variants share a quota; rice meals and comparable full meals should also consume this allowance. Bread pieces, curry sides, eggs and drinks need their own appropriate groups. Do not infer enforcement from editable display names or category text. Exact product grouping and serving-unit treatment must be reviewed, especially full/half/quarter chicken and packaged multipacks.
+## Active orders and atomic enforcement
 
-The rolling quota counts outstanding reserved meal portions regardless of their age, plus portions collected during the preceding 30 minutes. A portion counts once, not once in each set. Collected portions remain in the rolling count so collecting quickly and immediately reordering does not reset the allowance. Genuine cancellations release their quota; repeated reserve/cancel behaviour is handled separately.
+An unexpired unpaid checkout hold counts immediately. Holds expire after three minutes. Confirmed orders count while a portion is pending, preparing or ready. Pending, unarrived portions past their final deadline do not retain quota while awaiting worker cleanup. Arrived and preparation portions retain their capacity until a final state. All-terminal orders and financial reconciliation alone do not occupy a food slot.
 
-## What counts as active
+The backend takes a student transaction lock before the canteen lock. It checks campus-wide usage, current stock, prices and limits in the transaction that reserves portions and credit. Concurrent checkout at different canteens cannot allocate another student slot. Failed checks roll back every reservation and do not create a provider payment. A retry with the original request key returns its original order before quota checks. A changed cart requires a new key. Tier changes do not cancel paid orders or invalidate pickup passes. Payment confirmation uses the same student-before-canteen lock. A late capture after hold expiry must recheck all quantity and rolling quotas before restoring stock commitments. A failed re-reservation uses the existing idempotent external-payment resolution/refund path; it does not create a third active order. This is distinct from cancellation of an already confirmed food portion, which still issues same-canteen credit.
 
-- An unexpired unpaid checkout hold counts immediately, before payment starts. The current hold expires after three minutes.
-- A confirmed order counts while at least one portion remains pending, preparing or ready, including portions assigned to friends.
-- All-terminal orders do not count. Terminal portions are collected, cancelled or expired. Financial reconciliation alone must not keep a food slot occupied when no food is reserved.
-- Expired holds must not occupy a slot just because the worker has not cleaned them yet. Use server time and actual reservation state.
-- Quotas apply to the payer across Main, IT and MBA. Sharing pickup rights does not move the purchase quota or permit another reservation.
-- Do not cancel or invalidate an existing paid order when a student's tier drops. Apply stricter rules to subsequent checkout only.
+## Private pickup reliability
 
-Add an aggregate outstanding-portion cap too: proposed 10 / 14 / 18 across active orders for standard / reliable / established students. Two orders must not double every per-order allowance without a campus-wide bound.
+New students start at standard limits. Reliable requires five successful pickup days in the preceding 90 days; established requires 20. Both require at least 90% successful qualifying days. Count one positive day per student in campus time (Asia/Kolkata). A day with an attributable no-show does not also count as a successful day, even if another order was collected. Spending more or splitting orders on the same day adds no benefit. There is no public numerical score or leaderboard.
 
-## Reliability rather than a public trust ranking
+Success requires all relevant portions to be collected. For a payer, all portions in the order must be collected. For an accepted recipient, all their assigned portions must be collected. Only authenticated serving handover sets collection; payment or location check-in alone does not qualify. Identities ending in `.invalid` remain standard and earn no reputation. Gateway test mode itself is not a separate production-history filter; current demo identities are excluded by their identity.
 
-Start every verified student at standard limits. No purchase history is neutral, not suspicious.
+Three attributable missed orders in seven days apply the restricted allowance. Only server expiry with the exact final-arrival-deadline reason, no arrival, and processing within 90 seconds of the deadline qualifies. Multiple portions in one order count as one miss. Late worker processing, manager cancellations, preparation delays, early cancellations and payment failures do not count. An accepted friend's no-show belongs to the friend, while the payer retains purchase usage. Two successful days after the latest miss remove the temporary restriction; ageing beyond the seven-day window also removes it. Promotion then follows the normal 90-day rate.
 
-Proposed promotion: reliable after five completed orders across at least five distinct days; established after 20 completed orders across at least 15 distinct days. Use recent history, such as a rolling 90-day window, and require a high successful pickup rate once enough eligible orders exist. Count no more than one positive outcome per student per day. Exact success-rate thresholds and demotion windows remain to be chosen; the day and order counts above are recommendations.
+An assigned manager can review a student's recent penalties from Stock using university email and a reason. The student must have payer or recipient history in that manager's canteen. Serving accounts cannot review limits. A recorded review clears earlier no-show and checkout-cycle penalties campus-wide. It preserves positive history and never removes hard quantity limits. Reviews are audited and idempotent.
 
-Only authenticated counter handover is successful collection evidence. Phone check-in and payment alone are not success. More items, more spending and more separate orders on one day do not produce more reputation. Exclude fixtures, demo identities and test-only outcomes.
+## Checkout pause
 
-A verified no-show can lower future allowances. Three attributable no-shows in seven days could temporarily reduce the student to one active order and one main meal, with recovery after successful pickups. This is a proposed threshold; do not deploy it without defining eligibility, notice and recovery.
+Three new unstarted expired holds or fully student-cancelled orders within 30 minutes cause a pause until five minutes after the latest cycle ends. Idempotent retries are not new cycles. Expired holds with a provider order or reconciliation attempt are excluded because a payment-provider failure cannot be safely distinguished from abandonment. Paid pickups, browsing and check-in remain accessible during the pause.
 
-Do not penalize payment-provider failures, service outages, manager stock cancellations, kitchen delays or an early legitimate cancellation. If an accepted friend misses collection, attribute the collection failure to that friend rather than automatically blaming the payer. The payer still carries the outstanding purchase quota. Partial and mixed-recipient outcomes require portion-level attribution without counting each portion as a separate reputation event.
+## Interface
 
-Show private, understandable benefits: “You can have 2 active orders” and “Reliable pickups unlock larger orders.” Explain a restriction and provide a manager review path. Avoid a public numerical score, leaderboards and labels such as “untrustworthy.” Phone numbers entered in a profile are not verified identities.
+Menu, cart and Account show remaining order slots, total portions per order and main-meal capacity. Relevant Add controls stop at the limit; removal stays available. Messages explain scarcity, recent-pickup limits or checkout pauses. At an active-order limit, Open Orders provides the next action. Account explains larger allowances and manager review. The fixed app frame and inner-list scrolling remain unchanged.
 
-## Additional abuse controls
+The server owns the policy in `src/lib/order-limits.ts`; `src/modules/order-limits.ts` computes private history and usage. The browser only provides guidance and refreshes limits after a rejected checkout. Migration `0007_clumsy_killer_shrike` adds item group/cap metadata, portion group snapshots and an audit lookup index. It does not reset stock, prices, paid snapshots or balances.
 
-- Cap repeated abandoned checkout holds and rapid create/cancel cycles with a short, explained cooldown. Count new holds separately from HTTP requests; retries for an existing checkout must not look like new abuse.
-- Limit popular items by product group across orders. A cap on only Chicken Biriyani K.L does not stop purchases of every other biryani.
-- Keep scarcity rules even for established students. For example, when a product has ten or fewer portions left, limit new reservations to one portion per student within the rolling window. Do not shrink an already accepted paid reservation.
-- Give managers a bounded temporary override for a legitimate group order, with reason, expiry and an audit trail. A permanent unlimited exemption defeats the safeguard. Decide whether group-order support is necessary before implementing it.
-- University email verification limits account creation but cannot prevent several students from coordinating purchases. Do not promise complete prevention. Do not block people merely because they share campus Wi-Fi, a hostel or a device.
-- Trust must never bypass stock availability, payment verification, QR authorization or same-canteen credit accounting.
+## Verification and limits
 
-## Implementation and UI requirements
+Automated checks cover cross-canteen races, retries, timed-out holds, meal variants, recent pickups, bread and scarcity, late-capture re-reservation, promotion, recipient attribution, restricted allowances, scoped review, checkout pause and payment uncertainty. Existing stock, payment, cancellation and friend-collection workflows are regression checks. Browser checks cover disabled Add controls, removal, opening existing orders, manager edits and fixed frames.
 
-1. Agree on tier thresholds, product groups, per-product exceptions, scarcity, cooldown and group-order policy.
-2. Return the signed-in student's current limits and usage from the existing account API. Keep policy values in one server-owned configuration. The UI may guide ordering; the server must enforce it.
-3. Take a student-level transaction lock before the normal canteen lock, using the same lock order for every checkout. Check campus-wide active orders and quotas before reserving stock. The existing canteen-only lock does not protect simultaneous purchases by one student at two canteens.
-4. Preserve checkout idempotency. A retry of an already-created order returns that order without consuming a new slot or failing because the student has since reached the limit. A changed cart must use a new request key.
-5. Reserve inventory and consume capacity in the same transaction. Recheck current prices, quantities, active holds and product groups. Do not start payment for a cart that failed its quota check.
-6. Record/recompute reliability from unique server-side outcomes. Avoid creating a new write transaction on every catalogue poll. Keep corrections auditable and scores private. Audit every outcome source so cancellation reasons cannot be forged by a student.
-7. Show remaining capacity beside the cart, disable only the relevant Add control at its limit, and explain why. At an active-order cap, link to current orders or let the student resume their existing unpaid checkout. Do not block browsing or hide paid pickup passes.
-8. Keep the fixed app frame, category filters and accessible action states. A generic “invalid cart” error is insufficient; return the limit, current usage and next available action.
-
-## Required verification
-
-- Simultaneous checkouts in the same and different canteens cannot exceed a student quota or oversell stock.
-- Pending unpaid holds count; timed-out holds release capacity; failed or duplicate callbacks do not allocate it again.
-- Splitting one purchase into orders, switching biryani variants, collecting and immediately reordering, and sharing portions do not bypass quotas.
-- A checkout retry consumes one order slot and one reservation. A quota failure creates no provider payment.
-- Completed, cancelled and expired portions update capacity once. Partial collection and transferred portions remain correctly attributed.
-- Staff-caused cancellation, failed payment and kitchen delay do not produce a no-show penalty.
-- Promotions cannot be farmed with tiny repeated orders, repeated friend pairs, test accounts or client-edited values.
-- Tier changes leave existing paid orders intact. Manager overrides are scoped, bounded, time-limited and audited.
-- Bread-piece exceptions, scarce items and full/half/quarter servings follow the agreed rules.
-- Students can see why ordering is limited and can still open orders, check in and collect their already-paid food.
+These are application safeguards, not campus-wide purchase policy or a guarantee against coordinated purchases by several verified students. No IP or shared-device bans are used. Group-order overrides were not added. Tune the fixed policy after observing real use; do not add an unlimited exemption. Physical Android interaction and large-user load need separate verification. Delivery remains deferred.

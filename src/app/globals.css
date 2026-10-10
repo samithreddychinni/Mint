@@ -2018,3 +2018,34 @@ a {
   color: var(--primary-foreground);
   box-shadow: none;
 }
+
+.order-limit-notice {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f6edf0;
+  color: #6e2340;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.order-limit-notice p {
+  margin-top: 5px;
+}
+.checkout-grid > .order-limit-notice {
+  grid-column: 1 / -1;
+}
+.limits-review summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.limits-review form {
+  margin-top: 12px;
+}
+
+.item-order-limit {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 5px;
+  line-height: 1.4;
+}
