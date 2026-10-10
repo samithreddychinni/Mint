@@ -189,7 +189,27 @@ class ApiError extends Error {
   }
 }
 const mutationKeys = new Map<string, string>();
+const pendingReads = new Map<string, Promise<unknown>>();
 async function api<T>(path: string, data?: unknown): Promise<T> {
+  if (data !== undefined) {
+    pendingReads.clear();
+    try {
+      return await request<T>(path, data);
+    } finally {
+      pendingReads.clear();
+    }
+  }
+  const pending = pendingReads.get(path);
+  if (pending) return pending as Promise<T>;
+  const read = request<T>(path);
+  pendingReads.set(path, read);
+  try {
+    return await read;
+  } finally {
+    if (pendingReads.get(path) === read) pendingReads.delete(path);
+  }
+}
+async function request<T>(path: string, data?: unknown): Promise<T> {
   const managerMutation = data !== undefined && path.startsWith("manager/");
   const fingerprint = path + JSON.stringify(data);
   if (managerMutation) {
@@ -280,6 +300,7 @@ export function MintApp() {
   const checkoutKey = useRef<string>("");
   const handoverKey = useRef<string>("");
   const activeRefreshes = useRef(0);
+  const [refreshing, setRefreshing] = useState(false);
   const refreshVersion = useRef(0);
   const refreshCurrent = useRef<() => Promise<Me | null>>(async () => null);
   const [managerSummary, setManagerSummary] = useState<ManagerSummary | null>(
@@ -319,6 +340,7 @@ export function MintApp() {
     const version = ++refreshVersion.current;
     const currentRequest = () => refreshVersion.current === version;
     activeRefreshes.current++;
+    setRefreshing(true);
     let current: Me | null = null;
     const reads: Promise<unknown>[] = [
       api<Catalogue>("catalogue").then((c) => {
@@ -423,6 +445,7 @@ export function MintApp() {
       return current;
     } finally {
       activeRefreshes.current--;
+      if (!activeRefreshes.current) setRefreshing(false);
     }
   }, [
     selectedOrder,
@@ -487,10 +510,12 @@ export function MintApp() {
   const run = async (fn: () => Promise<unknown>, success?: string) => {
     if (actionRunning.current) return;
     actionRunning.current = true;
+    pendingReads.clear();
     setBusy(true);
     setMessage("");
     try {
       await fn();
+      pendingReads.clear();
       if (success) setMessage(success);
       await refreshCurrent.current();
     } catch (e) {
@@ -791,6 +816,7 @@ export function MintApp() {
       checkoutKey.current = "";
       handoverKey.current = "";
       mutationKeys.clear();
+      pendingReads.clear();
       passDialog.current?.close();
       stopScan();
       updatesDialog.current?.close();
@@ -902,10 +928,13 @@ export function MintApp() {
             variant="ghost"
             size="icon"
             aria-label="Refresh"
+            aria-busy={refreshing}
             disabled={busy || !online}
             onClick={() => void refresh()}
           >
-            <RefreshCw />
+            <RefreshCw
+              className={refreshing ? "refresh-spinning" : undefined}
+            />
           </Button>
           {me && student && (
             <Button
@@ -1549,7 +1578,10 @@ export function MintApp() {
                     All orders
                   </Button>
                   {detail?.order.id !== selectedOrder ? (
-                    <div className="app-loading">Opening your order…</div>
+                    <div className="app-loading order-loading" role="status">
+                      <span className="loading-ticket" aria-hidden="true" />
+                      Opening your order…
+                    </div>
                   ) : (
                     <>
                       <div className="ticket-header">

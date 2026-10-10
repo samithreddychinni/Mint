@@ -1086,3 +1086,50 @@ test("manager dashboard is scoped, shows separate money totals, changes period a
     page.getByRole("heading", { name: "Available stock" }),
   ).toBeVisible();
 });
+
+test("navigation and repeated refresh share pending reads without retaining completed data", async ({
+  page,
+}) => {
+  let delayed = false;
+  let reads = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/catalogue") {
+      reads++;
+      if (delayed) await gate;
+      return route.fulfill({ json: catalogue });
+    }
+    return route.fulfill({ json: dashboard });
+  });
+  await page.goto("/menu");
+  await expect(
+    page.getByRole("button", { name: "Add Fresh juice" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Refresh", exact: true }),
+  ).toHaveAttribute("aria-busy", "false");
+  const initial = reads;
+  delayed = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(() => reads).toBe(initial + 1);
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page.getByRole("link", { name: "Orders", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your orders", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  expect(reads).toBe(initial + 1);
+  await expect(
+    page.getByRole("button", { name: "Refresh", exact: true }),
+  ).toHaveAttribute("aria-busy", "true");
+  delayed = false;
+  release();
+  await expect(
+    page.getByRole("button", { name: "Refresh", exact: true }),
+  ).toHaveAttribute("aria-busy", "false");
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(() => reads).toBe(initial + 2);
+});

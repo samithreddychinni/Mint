@@ -27,3 +27,7 @@ localnotes/
 .agents/
 skills-lock.json
 prod-ca-2021.crt
+
+# Python monitor bytecode
+__pycache__/
+*.pyc

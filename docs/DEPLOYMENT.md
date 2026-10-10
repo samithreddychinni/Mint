@@ -61,11 +61,11 @@ A valid pickup-pass scan by an assigned serving account now records arrival auto
 
 The production geofences replace synthetic coordinates with the user-provided centres:
 
-| Canteen | Latitude | Longitude | Radius |
-|---|---|---|---|
-| Main | 10.9001514 | 76.9036917 | 65 m |
-| IT | 10.9049225 | 76.8980684 | 55 m |
-| MBA / ASB | 10.9046257 | 76.9022447 | 75 m |
+| Canteen   | Latitude   | Longitude  | Radius |
+| --------- | ---------- | ---------- | ------ |
+| Main      | 10.9001514 | 76.9036917 | 65 m   |
+| IT        | 10.9049225 | 76.8980684 | 55 m   |
+| MBA / ASB | 10.9046257 | 76.9022447 | 75 m   |
 
 All three retain a 25 m maximum reported GPS accuracy. Fresh foreground location, the server clock, and the uncertainty circle still determine check-in. These map pins are configured and read back through the public API; they are not a physical GPS survey.
 
@@ -89,10 +89,44 @@ The baseline warm API measurements were catalogue 428–637 ms, account 1365–1
 
 Three warm public-host samples after release:
 
-| Endpoint | Before (ms) | After (ms) | Median before → after |
-| --- | --- | --- | --- |
-| Catalogue | 428–637 | 269–296 | 434 → 273 ms |
-| Account | 1365–1543 | 948–1242 | 1410 → 1010 ms |
-| Order detail | 1658–1745 | 798–841 | 1675 → 828 ms |
+| Endpoint     | Before (ms) | After (ms) | Median before → after |
+| ------------ | ----------- | ---------- | --------------------- |
+| Catalogue    | 428–637     | 269–296    | 434 → 273 ms          |
+| Account      | 1365–1543   | 948–1242   | 1410 → 1010 ms        |
+| Order detail | 1658–1745   | 798–841    | 1675 → 828 ms         |
 
 Order API median latency fell by approximately 51%. Order navigation also no longer waits for catalogue and account reads before requesting details. These are three-sample warm measurements from the test client, with demo records; they are not a load test or an Android timing guarantee. Free Render cold starts are outside this baseline.
+
+## Laptop health monitor
+
+The backend already exposes `GET https://mint-api-nlqd.onrender.com/api/health`. A healthy response is HTTP 200 with `status: "ok"` and `service: "mint-api"`. This endpoint verifies database access with `select 1`; it requires no credentials and changes no orders.
+
+`scripts/keep_render_warm.py` uses Python 3's standard library. It sends one request immediately and then checks every 30 seconds, measured from the start of each request. Requests never overlap. The 75-second timeout allows the first request to wake a sleeping instance. Failed requests are logged and the loop continues. Successful requests taking more than five seconds are labelled `SLOW`. Ctrl+C stops the foreground process.
+
+From the workspace root:
+
+```bash
+python3 scripts/keep_render_warm.py --once
+python3 scripts/keep_render_warm.py
+```
+
+To keep it running after closing the terminal:
+
+```bash
+mkdir -p .local
+nohup python3 -u scripts/keep_render_warm.py > .local/render-keepalive.log 2>&1 < /dev/null &
+printf '%s\n' "$!" > .local/render-keepalive.pid
+```
+
+Read the latest checks and stop the background process:
+
+```bash
+tail -n 10 .local/render-keepalive.log
+kill "$(cat .local/render-keepalive.pid)"
+```
+
+Start only one monitor. This process does not start automatically after a laptop reboot and does not prevent the laptop from sleeping. If the laptop sleeps, goes offline, or shuts down, checks stop. The first request after an idle shutdown can still take about a minute. Render can also restart a free instance independently of inactivity; this script is not an uptime guarantee. See [Render's free-service limits](https://render.com/docs/free#spinning-down-on-idle).
+
+The existing signed Supabase worker is scheduled every 30 seconds and should already provide inbound traffic when dispatch is healthy. This monitor is an additional health check; it does not replace the worker that expires orders and reconciles payments. No backend redeploy, extra endpoint, account secret, paid service or delivery feature is needed.
+
+Verification: `python3 -m unittest discover -s tests -p 'test_keep_render_warm.py'` covers response validation, failure recovery, request spacing and one-shot exit status. `--once` verifies the actual public backend.

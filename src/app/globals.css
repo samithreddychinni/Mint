@@ -858,6 +858,34 @@ button[data-variant="outline"] {
   justify-content: center;
   color: var(--muted-foreground);
 }
+@keyframes refresh-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.refresh-spinning {
+  animation: refresh-turn 1s linear infinite;
+}
+.loading-ticket {
+  width: min(100%, 330px);
+  height: 150px;
+  border: 1px solid #ead0da;
+  border-radius: 20px 20px 6px 20px;
+  background:
+    linear-gradient(#ead0da, #ead0da) 24px 28px / 45% 12px no-repeat,
+    linear-gradient(#f2e7eb, #f2e7eb) 24px 60px / 75% 10px no-repeat,
+    linear-gradient(#f2e7eb, #f2e7eb) 24px 84px / 60% 10px no-repeat,
+    #fffdfb;
+}
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a {
+  touch-action: manipulation;
+}
 .arrival-card {
   display: flex;
   align-items: center;

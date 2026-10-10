@@ -1,6 +1,6 @@
 # Campus delivery proposal
 
-Status: proposal for review. No delivery code, surcharge, public board, contact sharing, or delivery reward is enabled by this document.
+Status: future scope only. The user deferred this feature on 11 October 2026. Fresh approval is required before implementation. No delivery code, surcharge, public board, contact sharing, or delivery reward is enabled by this document.
 
 ## Recommendation
 
@@ -10,7 +10,7 @@ Keep normal pickup as the default. Put a clear **Pickup / Bring it to me** choic
 
 ## Decisions the user has made
 
-- Delivery adds 10% of the food subtotal. The full delivery charge becomes the delivering student's same-canteen credit after the buyer confirms receipt.
+- Delivery adds 10% of the food subtotal. The full delivery charge becomes the delivering student's same-canteen credit after the buyer scans the delivery student’s delivery QR and explicitly confirms receipt.
 - Credit is usable only at the canteen that supplied the order. It is not a cash withdrawal or bank payment.
 - Destinations: Night canteen, Arjuna statue, Swimming pool, General store, AB1 parking, Butterfly park.
 - The buyer's and delivery student's contact information becomes visible to each other only after a request is accepted.
@@ -25,7 +25,7 @@ The destination called Night canteen is a delivery meeting point. It does not ad
 3. Review the food subtotal, 10% delivery charge, same-canteen credit used, and total. Show the delivery charge separately even though menu prices include it. Never charge it twice.
 4. Pay once through the existing checkout. Publish the request only after the server verifies payment. It must not appear on the board while payment is pending.
 5. Follow the statuses **Finding a student → Accepted → Collecting food → On the way → Awaiting receipt confirmation → Delivered**. “On the way” requires every non-cancelled portion to be handed over by staff.
-6. After receiving the food, press **Received my order**. The server credits the reward exactly once. The delivering student cannot confirm receipt for the buyer.
+6. After receiving the food, scan the assigned delivery student’s delivery QR, then press **Received my order**. The server credits the reward exactly once. The delivering student cannot confirm receipt for the buyer.
 
 The buyer's location at an academic block is expected. The buyer does not need canteen check-in in delivery mode. The assigned delivery student must satisfy pickup arrival rules.
 
@@ -59,7 +59,7 @@ Recommended edge rules to review before implementation:
 
 Keep the current Amrita burgundy `#A4123F`, warm background `#FAF8F7`, and paper cards `#FFFDFB`. Use the existing fixed app frame and bottom navigation. Only inner lists may scroll; actions remain reachable. Do not add a product landing page.
 
-Open-request card: destination heading; canteen and pickup deadline underneath; compact item summary; reward badge on the right; one **Accept and collect** action. Filter chips use the six approved destination names. Accepted-request screen: large status, meeting point, **Call buyer**, counter passes, and item preparation/collection states. Buyer screen: assigned student's name, **Call student**, order progress, then **Received my order** when collection is complete.
+Open-request card: destination heading; canteen and pickup deadline underneath; compact item summary; reward badge on the right; one **Accept and collect** action. Filter chips use the six approved destination names. Accepted-request screen: large status, meeting point, **Call buyer**, counter passes, and item preparation/collection states. Buyer screen: assigned student's name, **Call student**, order progress, then **Scan delivery QR** and **Received my order** when collection is complete.
 
 Use clear words: **delivery student**, **buyer**, **pickup QR**, **delivery reward**. Avoid “escrow”, “collector ID”, raw pass text, provider IDs, and internal ledger fields in the student flow.
 
@@ -94,3 +94,14 @@ In-app updates can use the existing polling. Suggested events: request accepted,
 - Before acceptance, no public or unrelated API reveals names, numbers, exact meeting points, or presence records. After acceptance, only the two participants receive contacts.
 - A changed assignment revokes old passes. Already-collected portions cannot be collected again.
 - On OnePlus Nord 2 Chrome, verify real GPS, QR scanning, installed-app layout, permission denial, contact links, and fixed-frame controls. Browser mocks do not replace these checks.
+
+## Future QR security and trust scores
+
+These are design recommendations, not approved implementation tasks.
+
+- Keep pickup QR and delivery QR separate. Staff handover means food was collected; it does not complete delivery or release its reward.
+- Use a short-lived, single-use delivery challenge bound to the order, authenticated buyer, active delivery student, and assignment version. Issue it only after every non-cancelled portion has been handed over. Require scanning and an explicit buyer confirmation. Reject replay, another buyer, a stale assignment, and confirmation by the delivery student. Retry must return the same result without another credit.
+- Both ordering modes must read the same menu, prices, and inventory and use the existing atomic reservation path. Acceptance must not reserve food again or create another preparation task.
+- Proposed trust scores should start neutral and use server-recorded outcomes. Keep buyer and delivery reliability separate. Cap gains from repeated pairs to limit score farming. An accusation alone must not reduce a score. Provide evidence review and an appeal path. A score must never bypass buyer QR confirmation or create unfunded credit.
+- Prevent self-acceptance, simultaneous assignment, request hoarding, and contact exposure before acceptance. GPS alone cannot prevent location spoofing; use it alongside authenticated pickup evidence.
+- Partial rewards, time limits, disputes, reassignment, and trust-score formulas remain unresolved. Review them before implementation. No timeout may automatically pay a delivery student without the buyer’s QR confirmation.
