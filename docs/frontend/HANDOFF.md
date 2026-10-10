@@ -356,22 +356,20 @@ Keep expired, canceled, or transferred rights from appearing as valid pickup aut
 
 Default to the serving workspace for a serving-only account.
 
-Keep the assigned counter selector visible. Offer `Scan pickup` and `Queue` tabs.
+Keep the assigned counter selector visible. Offer `Scan pickup` and `Pending items` tabs. The second tab retains only made-to-order preparation jobs, not a billing queue.
 
 The scan flow is:
 
-1. Start camera or enter a pass.
+1. Start camera. Keep pasted QR text and reference/email lookup inside the collapsed `Camera not working?` recovery section.
 2. Resolve the pass through the server.
-3. Inspect the collector and permitted portions.
+3. Show the assigned pickup name and permitted portions. The pickup person may be a verified friend, and does not need to be the payer.
 4. Select only the portions physically handed over.
 5. Confirm handover.
 6. Select `Next pickup` immediately.
 
 Scanning a valid pass automatically records arrival for that collector's outstanding portions in the same order and canteen, including other serving counters. It must not record arrival for friends or confirm handover. Show order details immediately after scanning. Repeated scans must not extend collection deadlines. Expired/revoked passes and unauthorized or wrong-counter scans must not record arrival.
 
-Keep unfinished portions in the queue with their existing tokens.
-
-The queue has `Awaiting prep`, `Preparing`, `Ready`, and `Recent handovers` filters.
+Keep unfinished made-to-order portions in `Pending items` with their existing tokens. Also show `Start [item]` and `Mark [item] ready` directly beside scanned items. Ready stock does not appear in this preparation list. To hand over a prepared item, scan the student’s QR again. Refresh scanned portion states after preparation; do not leave the checkbox disabled after an item becomes ready.
 
 Keep preparation and handover actions separate. Preserve portion versions and handover idempotency keys.
 
@@ -401,11 +399,15 @@ The backend adjusts free batches in its existing canteen transaction. It preserv
 
 There is no manager operations dashboard, financial report, scope-assignment form, geofence editor, or billing workspace in this frontend. Those backend capabilities can remain available to separate administrative tooling.
 
-Menu items and prices currently come from the existing catalogue. The narrowed frontend scope has no menu-creation or price-editing form. Do not add these unless the user requests them again.
+The user has now requested item editing. Each card has a pencil button. Only that button opens name, price, note, availability status, and default-quantity fields. `Save item details` uses the manager-only `item-settings` action with an optimistic settings snapshot. Reject stale edits as `ITEM_CHANGED`. Changing an item must not rename or reprice previously paid portions. The default quantity is a saved baseline, not an automatic daily reset. `Use default for stock` copies it into the availability field; the manager must still save that count. There is no automatic stock reset or item readiness-mode change.
 
 ### Account and credit
 
-Keep Account compact: identity, canteen credit, installation action, help, and sign out.
+After verified student sign-in, require a name and mobile number once when the private profile has no `completed_at` value. Validate and normalize Indian mobile numbers on the server. Email OTP remains the identity check; the phone number is not SMS verified. Only `/api/me` returns the signed-in user’s private profile. `/api/profile` can update only the authenticated actor, not a client-supplied ID or role. Account allows later edits.
+
+Keep Account compact: identity, editable profile, canteen credit, installation action, help, and sign out. The student header bell opens live in-app order progress and pickup invitations. It uses the existing dashboard polling and is not background push. Do not claim closed-app notifications work.
+
+Campus delivery remains a proposal. Read [CAMPUS_DELIVERY_PROPOSAL.md](CAMPUS_DELIVERY_PROPOSAL.md) before implementation. The user approved 10% same-canteen credit rewards and six destination names, but requested a written design first. No delivery charges or rights transfers for delivery are currently enabled.
 
 Credit shows one balance per canteen. Show reserved credit separately from available credit.
 
@@ -448,7 +450,8 @@ All paths below have the `/api/` prefix. Read the route implementation for compl
 | Method and path | Frontend responsibility |
 | --- | --- |
 | `GET catalogue` | Load canteens, counters, items, quantities, and server time. |
-| `GET me` | Load identity, roles, orders, credit, and invitations. |
+| `GET me` | Load identity, private own profile, roles, orders, credit, and invitations. |
+| `POST profile` | Update the authenticated actor’s name and mobile number; never accept another user ID or role. |
 | `POST auth/request` | Send `{ email }`. |
 | `POST auth/verify` | Send `{ email, token }`. |
 | `POST auth/password` | Send assigned-account credentials. |
@@ -467,7 +470,7 @@ All paths below have the `/api/` prefix. Read the route implementation for compl
 | `POST staff/resolve` | Resolve pass or reference plus collector within a counter. |
 | `POST staff/handover` | Send counter, selected portion IDs and versions, and retry key. |
 | `POST staff/preparation` | Send portion ID and `start` or `ready`. |
-| `POST manager/:canteen` | Manager-only `{ action: "stock", itemId, quantity, expectedAvailable, reason, key }`. Existing backend authorization is preserved. |
+| `POST manager/:canteen` | Manager-only stock override or `item-settings` edit. Stock uses `expectedAvailable`; settings use `expectedSettings`; both retain their retry key. |
 
 Amounts use integer paise. Convert to rupees only for display or explicit rupee-entry fields.
 
@@ -541,7 +544,7 @@ Arrival/install correction, 11 October 2026: a valid staff scan now records arri
 - Real keyboard opening, orientation changes, 200% text/zoom, and assistive-technology navigation.
 - Physical camera scanning and permission denial.
 - Provider-origin webhook delivery, live payment credentials, and closed-checkout recovery on a phone.
-- Explicit preparation start → ready flow coverage in the isolated browser suite.
+- Physical preparation/pickup flow on a phone. Isolated browser coverage now includes start → ready → handover for a shared recipient.
 - Screenshots of every screen, including empty/error/loading states, with visual inspection.
 
 Do not mark these complete from mocked tests or a resized desktop browser.
@@ -698,3 +701,9 @@ The fixed-frame decision is a design inference from these sources and the user's
 ## 15. Prompt to give the next model
 
 > Continue the MINT frontend in this workspace. Read `AGENTS.md` and `docs/frontend/HANDOFF.md` first. Open `docs/frontend/visual-target.svg`. Follow the document's remaining task order, exact palette, screen hierarchy, and acceptance criteria. Managers alone update stock. Serving accounts scan and confirm pickup. Walk-in billing uses a separate system; do not add a cashier workspace. Preserve the existing backend contracts and staged work. Complete the pending verification and fix reproduced defects before adding anything. Do not repeat the completed layout rewrite. Do not replace the design, add dependencies, modify database rules, or claim checks you did not run. Complete the isolated tests, inspect screenshots, and report remaining real-device limits.
+
+## Campus refinements, 11 October 2026
+
+The user was testing location from an academic block, outside the canteen. Rejection there is expected; geofencing has not been widened or bypassed. A first staff scan now preserves the assigned collector name/email/reference when arrival rows are merged. The server permits an accepted friend to collect assigned portions; the payer and collector do not have to match. Scanned items show preparation controls, and ready checkboxes update after preparation. Manual QR/reference input stays collapsed under camera recovery. `Pending items` means unfinished preparation, not billing. Name, price, note, availability toggle, and default quantity open only from the manager pencil. Stock remains a manual absolute count with reservations protected. Profile data is private to the authenticated actor; entered phones are not SMS verified. Updates are in-app progress and invitations, not closed-app push.
+
+Migration `0005_thick_vertigo` adds private profile phone/completion fields and a bounded item default quantity. It is additive and does not reset stock or rewrite existing orders. Nine focused workflow tests passed, including actual accepted-recipient scanning/handover, paid-order snapshots, stale manager edits, actor-only profile updates, protected stock, and preparation/concurrent-rights regressions. Supabase database security advisors reported no findings. The full prior workflow suite is not rerun for this change.

@@ -28,6 +28,7 @@ import {
 import { signature } from "../src/lib/razorpay";
 import { createHmac } from "node:crypto";
 import { tick } from "../src/jobs/tick";
+import { updateProfile, profileSchema } from "../src/modules/profiles";
 const fixtures: string[] = [];
 const profiles: string[] = [];
 async function fixture(stock = 20, balance = 100000) {
@@ -102,6 +103,131 @@ const portions = async (id: unknown) =>
   rows(db, sql`select * from mint.units where order_id=${id} order by id`);
 const safeError = (code: string) => (e: unknown) =>
   e instanceof Error && "code" in e && e.code === code;
+test("accepted friend pickup scans and collects with the recipient name, without payer matching", async () => {
+  const f = await fixture();
+  const order = await confirmed(f, 2);
+  const before = await portions(order.id);
+  const old = (await passes(f.payer, String(order.id)))[0];
+  const invitation = await invite(
+    f.payer,
+    String(order.id),
+    [String(before[0].id)],
+    f.friend.email,
+  );
+  await invitationAction(f.friend, String(invitation!.id), "accept");
+  const friendPass = (await passes(f.friend, String(order.id)))[0];
+  const found = await resolvePass(f.staff, friendPass.token, f.s);
+  assert.equal(found.units.length, 1);
+  assert.equal(found.units[0].collector_id, f.friend.id);
+  assert.equal(found.units[0].collector_name, "friend");
+  assert.equal(found.units[0].collector_email, f.friend.email);
+  assert.equal(found.units[0].reference, order.reference);
+  assert.match(found.message, /collecting for a friend/);
+  const requested = [
+    { id: String(found.units[0].id), version: Number(found.units[0].version) },
+  ];
+  await handover(f.staff, f.s, requested, randomUUID());
+  const current = await portions(order.id);
+  assert.equal(
+    current.find((unit) => unit.collector_id === f.friend.id)!.state,
+    "collected",
+  );
+  assert.equal(
+    current.find((unit) => unit.collector_id === f.payer.id)!.state,
+    "pending",
+  );
+  assert.equal(
+    current.find((unit) => unit.collector_id === f.payer.id)!.arrived_at,
+    null,
+  );
+  const payer = await resolvePass(f.staff, old.token, f.s);
+  assert.equal(payer.units.length, 1);
+  assert.equal(payer.units[0].collector_id, f.payer.id);
+  assert.equal(
+    (await orderView(f.friend, String(order.id))).order.total,
+    undefined,
+  );
+});
+test("manager pencil settings preserve paid snapshots, reject stale edits and remain scoped", async () => {
+  const f = await fixture();
+  const order = await confirmed(f);
+  const settings = {
+    itemId: f.item,
+    name: "New rice name",
+    price: 700,
+    note: "Updated menu",
+    paused: true,
+    defaultQuantity: 15,
+    expectedSettings: JSON.stringify(["Fixture rice", 500, "", false, 0]),
+    reason: "Edit menu defaults",
+    key: randomUUID(),
+  };
+  await assert.rejects(
+    manage(f.staff, f.c, "item-settings", settings),
+    safeError("FORBIDDEN"),
+  );
+  await manage(f.manager, f.c, "item-settings", settings);
+  await manage(f.manager, f.c, "item-settings", settings);
+  const item = (await one(
+    db,
+    sql`select * from mint.items where id=${f.item}`,
+  ))!;
+  assert.equal(item.name, settings.name);
+  assert.equal(item.price, 700);
+  assert.equal(item.paused, true);
+  assert.equal(item.default_quantity, 15);
+  const unit = (await portions(order.id))[0];
+  assert.equal(unit.name, "Fixture rice");
+  assert.equal(unit.price, 500);
+  assert.equal(
+    (await one(
+      db,
+      sql`select committed from mint.batches where id=${f.batch}`,
+    ))!.committed,
+    1,
+  );
+  await assert.rejects(
+    manage(f.manager, f.c, "item-settings", {
+      ...settings,
+      key: randomUUID(),
+      price: 800,
+    }),
+    safeError("ITEM_CHANGED"),
+  );
+  await assert.rejects(
+    hold(f.payer, cart(f, 1, 0)),
+    safeError("STOCK_UNAVAILABLE"),
+  );
+});
+test("profile edits normalize phone, preserve identity and cannot change a peer", async () => {
+  const f = await fixture();
+  const result = await updateProfile(f.payer, {
+    name: "  Campus Student  ",
+    phone: "90000 00001",
+    id: f.friend.id,
+    kind: "staff",
+  });
+  assert.equal(result.name, "Campus Student");
+  assert.equal(result.phone, "+919000000001");
+  assert.ok(result.completed_at);
+  const again = await updateProfile(f.payer, {
+    name: "Campus Student",
+    phone: "+91 90000 00001",
+  });
+  assert.deepEqual(again.completed_at, result.completed_at);
+  const peer = (await one(
+    db,
+    sql`select name,phone,kind from mint.profiles where id=${f.friend.id}`,
+  ))!;
+  assert.equal(peer.name, "friend");
+  assert.equal(peer.phone, null);
+  assert.equal(peer.kind, "student");
+  assert.equal((await dashboard(f.payer)).profile!.phone, "+919000000001");
+  assert.equal(
+    profileSchema.safeParse({ name: "Campus Student", phone: "123" }).success,
+    false,
+  );
+});
 test("manager stock updates preserve reservations and reject serving staff", async () => {
   const f = await fixture(10);
   await confirmed(f, 2);
@@ -380,13 +506,15 @@ test("a valid staff pass scan arrives only that collector across counters and re
     (p) => p.stationId === f.s,
   )!;
   const resolved = await resolvePass(f.staff, pass.token, f.s);
-  assert.match(resolved.message, /Arrival confirmed/);
+  assert.match(resolved.message, /Pickup QR accepted/);
   assert.ok(resolved.units.every((u) => u.arrived_at));
   const first = await portions(o.id);
   const own = first.filter((u) => u.collector_id === f.payer.id);
   assert.equal(own.length, 2);
   assert.ok(own.every((u) => u.arrived_at));
-  assert.ok(own.every((u) => String(u.arrived_at) === String(own[0].arrived_at)));
+  assert.ok(
+    own.every((u) => String(u.arrived_at) === String(own[0].arrived_at)),
+  );
   assert.equal(
     first.find((u) => u.collector_id === f.friend.id)!.arrived_at,
     null,

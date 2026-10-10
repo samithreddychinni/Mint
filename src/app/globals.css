@@ -208,6 +208,17 @@ button[data-variant="outline"] {
 .stock-item-controls button {
   flex-shrink: 0;
 }
+.item-settings {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.profile-onboarding { max-width: 480px; margin: 24px auto; }
+.update-card { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.update-card span { flex: 1; min-width: 0; }
+.update-card strong, .update-card small { display: block; }
+.update-card small { color: var(--muted-foreground); margin-top: 4px; }
+.update-dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); top: 8px; right: 8px; }
 .app-root {
   height: var(--app-height, 100dvh);
   min-height: 0;

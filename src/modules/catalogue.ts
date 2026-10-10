@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { atomic, rows, scope, orderScope, type Actor } from "./core";
+import { atomic, one, rows, scope, orderScope, type Actor } from "./core";
 import { expireTx } from "./orders";
 export async function catalogue() {
   const canteens = await rows(
@@ -68,6 +68,10 @@ export async function orderView(a: Actor, id: string) {
   };
 }
 export async function dashboard(a: Actor) {
+  const profile = await one(
+    db,
+    sql`select name,phone,completed_at from mint.profiles where id=${a.id}`,
+  );
   const memberships = await rows(
     db,
     sql`select r.*,c.name canteen_name,s.name station_name from mint.roles r join mint.canteens c on c.id=r.canteen_id left join mint.stations s on s.id=r.station_id where user_id=${a.id}`,
@@ -75,6 +79,7 @@ export async function dashboard(a: Actor) {
   if (a.kind === "staff")
     return {
       actor: a,
+      profile,
       roles: memberships,
       orders: [],
       credits: [],
@@ -84,6 +89,7 @@ export async function dashboard(a: Actor) {
     };
   return {
     actor: a,
+    profile,
     roles: memberships,
     orders: await rows(
       db,

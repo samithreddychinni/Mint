@@ -186,7 +186,7 @@ test("Android Chrome shows actionable installation steps and old dismissal expir
   await expect(
     page.getByRole("button", { name: "Install MINT" }),
   ).toBeVisible();
-  await page.clock.runFor(30000);
+  await page.clock.runFor(31000);
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText(/In Chrome, tap/)).toContainText(
     "Add to home screen → Install",

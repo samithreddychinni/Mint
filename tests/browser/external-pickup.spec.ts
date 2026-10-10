@@ -48,6 +48,21 @@ test("actual captured Razorpay test order requires student check-in and commits 
       await expect(
         page.getByRole("button", { name: "Sign out" }),
       ).toBeVisible();
+      if (email.endsWith("@demo.mint.invalid")) {
+        const me = await (await page.request.get("/api/me")).json();
+        if (me.profile && !me.profile.completed_at) {
+          await page
+            .getByLabel("Your name", { exact: true })
+            .fill("Demo Student");
+          await page
+            .getByLabel("Mobile number", { exact: true })
+            .fill("9000000001");
+          await page.getByRole("button", { name: "Continue to MINT" }).click();
+          await expect(
+            page.getByRole("heading", { name: "Make MINT yours" }),
+          ).toHaveCount(0);
+        }
+      }
     }
     const before = await student.evaluate(
       async (id) => await (await fetch("/api/orders/" + id)).json(),
@@ -81,16 +96,15 @@ test("actual captured Razorpay test order requires student check-in and commits 
       record.orderId,
     );
     await staff.getByRole("link", { name: "Serving", exact: true }).click();
+    await staff.getByText("Camera not working?", { exact: true }).click();
     await staff
-      .getByLabel("Collection pass", { exact: true })
+      .getByLabel("Paste QR code", { exact: true })
       .fill(passes[0].token);
     await staff
-      .getByRole("button", { name: "Resolve pass", exact: true })
+      .getByRole("button", { name: "Open pickup", exact: true })
       .click();
     await staff.locator("input[type=checkbox]").first().check();
-    await staff
-      .getByRole("button", { name: "Handed over: 1 portions" })
-      .click();
+    await staff.getByRole("button", { name: "Done · 1 item given" }).click();
     await expect(
       staff.getByText(
         "Handover confirmed. Do not give these portions to another collector.",

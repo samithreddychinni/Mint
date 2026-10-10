@@ -20,6 +20,8 @@ export const profiles = mint.table("profiles", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   kind: text("kind").notNull(),
+  phone: text("phone"),
+  completedAt: time("completed_at"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
 export const allowed = mint.table("allowed_identities", {
@@ -78,12 +80,17 @@ export const items = mint.table(
     price: integer("price").notNull(),
     mode: text("mode").notNull(),
     note: text("note").notNull().default(""),
+    defaultQuantity: integer("default_quantity").notNull().default(0),
     paused: boolean("paused").notNull().default(false),
   },
   (t) => [
     index("menu_canteen").on(t.canteenId),
     check("positive_price", sql`${t.price}>0`),
     check("item_mode", sql`${t.mode} in ('ready','made')`),
+    check(
+      "default_quantity_range",
+      sql`${t.defaultQuantity} between 0 and 10000`,
+    ),
   ],
 );
 export const batches = mint.table(

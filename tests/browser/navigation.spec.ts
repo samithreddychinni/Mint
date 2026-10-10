@@ -89,7 +89,7 @@ test("app routes preserve the cart, require confirmation for canteen changes and
     page.getByRole("heading", { name: "What sounds good?", exact: true }),
   ).toHaveCount(0);
 });
-test("Ready queue includes arrived ready-stock portions whose stored state is pending", async ({
+test("Pending items contains preparation jobs and keeps ready stock in the scan flow", async ({
   page,
 }) => {
   await page.route("**/api/**", async (route) => {
@@ -101,8 +101,8 @@ test("Ready queue includes arrived ready-stock portions whose stored state is pe
           {
             id: "portion",
             name: "Fresh juice",
-            state: "pending",
-            mode: "ready",
+            state: "preparing",
+            mode: "made",
             version: 1,
             station_id: "drinks",
             station_name: "Drinks",
@@ -134,14 +134,17 @@ test("Ready queue includes arrived ready-stock portions whose stored state is pe
     });
   });
   await page.goto("/staff");
-  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByRole("button", { name: /^Pending items/ }).click();
   await expect(
     page.getByText("Fresh juice × 1", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Inspect for handover" }).click();
   await expect(
-    page.getByLabel("Collection pass", { exact: true }),
+    page.getByRole("button", { name: "Mark ready", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Scan pickup", exact: true }).click();
+  await expect(
+    page.getByLabel("Paste QR code", { exact: true }),
+  ).not.toBeVisible();
   await expect(
     page.getByRole("button", { name: /confirm arrival|override location/i }),
   ).toHaveCount(0);

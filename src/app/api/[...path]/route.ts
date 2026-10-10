@@ -6,6 +6,7 @@ import { handle, body } from "@/lib/http";
 import { actor, authClient } from "@/lib/auth";
 import { insist } from "@/lib/errors";
 import { one, rate, hash, student } from "@/modules/core";
+import { updateProfile } from "@/modules/profiles";
 import {
   catalogue,
   dashboard,
@@ -44,6 +45,17 @@ const email = z
   .max(254)
   .transform((v) => v.toLowerCase());
 const managerSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("item-settings"),
+    itemId: uuid,
+    name: z.string().trim().min(1).max(100),
+    price: z.number().int().min(1).max(1000000),
+    note: z.string().trim().max(300),
+    paused: z.boolean(),
+    defaultQuantity: z.number().int().min(0).max(10000),
+    expectedSettings: z.string().max(1000),
+    reason: z.string().min(3).max(300),
+  }),
   z.object({
     action: z.literal("stock"),
     itemId: uuid,
@@ -253,6 +265,7 @@ async function dispatch(request: NextRequest, segments: string[]) {
       }
     }
     const a = await actor();
+    if (path === "profile") return updateProfile(a, b);
     if (path === "checkouts") {
       student(a);
       await rate("checkout:" + a.id, 30, 60);

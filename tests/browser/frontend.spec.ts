@@ -597,8 +597,12 @@ test("staff partial handover keeps preparation tokens and permits the next picku
   await expect(page.getByRole("link", { name: "Billing counter" })).toHaveCount(
     0,
   );
-  await page.getByLabel("Collection pass", { exact: true }).fill("sample-pass");
-  await page.getByRole("button", { name: "Resolve pass", exact: true }).click();
+  await expect(
+    page.getByLabel("Paste QR code", { exact: true }),
+  ).not.toBeVisible();
+  await page.getByText("Camera not working?", { exact: true }).click();
+  await page.getByLabel("Paste QR code", { exact: true }).fill("sample-pass");
+  await page.getByRole("button", { name: "Open pickup", exact: true }).click();
   await page
     .locator("label")
     .filter({ hasText: "Fresh juice × 1" })
@@ -607,7 +611,7 @@ test("staff partial handover keeps preparation tokens and permits the next picku
   await expect(
     page.locator("label").filter({ hasText: "Dosa × 1" }).locator("input"),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Handed over: 1 portions" }).click();
+  await page.getByRole("button", { name: "Done · 1 item given" }).click();
   await expect(
     page.getByText(
       "Handover confirmed. Do not give these portions to another collector.",
@@ -618,9 +622,13 @@ test("staff partial handover keeps preparation tokens and permits the next picku
     portions: [{ id: "unit-juice", version: 1 }],
     key: expect.any(String),
   });
-  await expect(page.getByText("Dosa × 1", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Scanned pickup" })
+      .getByText("Dosa × 1", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Next pickup", exact: true }).click();
-  await expect(page.getByLabel("Collection pass", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Paste QR code", { exact: true })).toHaveValue(
     "",
   );
   await page.screenshot({ path: ".local/qa/serving-390.png" });
@@ -701,4 +709,191 @@ test("camera scan reads the QR and displays arrived portions without a second re
   ).toBeEnabled();
   expect(resolves).toBe(1);
   expect(handovers).toBe(0);
+});
+
+test("pencil exposes menu settings, saves paise and keeps stock editing separate", async ({
+  page,
+}) => {
+  const menu = structuredClone(catalogue);
+  const requests: Record<string, unknown>[] = [];
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") return route.fulfill({ json: menu });
+    if (path === "/api/manager/main") {
+      const data = route.request().postDataJSON();
+      requests.push(data);
+      Object.assign(menu.items[0], {
+        name: data.name,
+        price: data.price,
+        paused: data.paused,
+      });
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({
+      json: {
+        ...dashboard,
+        actor: { ...actor, kind: "staff" },
+        roles: [{ role: "manager", canteen_id: "main", station_id: null }],
+      },
+    });
+  });
+  await page.goto("/manager");
+  await expect(page.getByLabel("Item name", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit Fresh juice details" }).click();
+  await page.getByLabel("Item name", { exact: true }).fill("Orange juice");
+  await page.getByLabel("Price in rupees").fill("45.50");
+  await page.getByLabel("Default portions").fill("12");
+  await page.getByLabel("Available for new orders").uncheck();
+  await page.getByRole("button", { name: "Use default for stock" }).click();
+  await expect(
+    page.getByLabel("Available portions for Fresh juice"),
+  ).toHaveValue("12");
+  expect(requests).toHaveLength(0);
+  await page.getByRole("button", { name: "Save item details" }).click();
+  await expect(page.getByText("Item details updated.")).toBeVisible();
+  expect(requests[0]).toMatchObject({
+    action: "item-settings",
+    name: "Orange juice",
+    price: 4550,
+    paused: true,
+    defaultQuantity: 12,
+    expectedSettings: JSON.stringify(["Fresh juice", 4000, "", false, 0]),
+  });
+  await expect(page.getByLabel("Item name", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Orange juice", exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
+});
+
+test("student completes private profile once, edits it and opens live in-app updates", async ({
+  page,
+}) => {
+  const me = {
+    ...structuredClone(dashboard),
+    profile: {
+      name: "email-id",
+      phone: null as string | null,
+      completed_at: null as string | null,
+    },
+    orders: [order],
+  };
+  const posted: Record<string, unknown>[] = [];
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") return route.fulfill({ json: catalogue });
+    if (path === "/api/profile") {
+      const data = route.request().postDataJSON();
+      posted.push(data);
+      me.profile = {
+        name: data.name,
+        phone: "+91" + data.phone.replace(/\s/g, ""),
+        completed_at: serverTime,
+      };
+      return route.fulfill({ json: me.profile });
+    }
+    return route.fulfill({ json: me });
+  });
+  await page.goto("/menu");
+  await expect(
+    page.getByRole("heading", { name: "Make MINT yours" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "What sounds good?" }),
+  ).toHaveCount(0);
+  await page.getByLabel("Your name", { exact: true }).fill("Campus Student");
+  await page.getByLabel("Mobile number", { exact: true }).fill("9000000001");
+  await page.getByRole("button", { name: "Continue to MINT" }).click();
+  await expect(
+    page.getByRole("heading", { name: "What sounds good?" }),
+  ).toBeVisible();
+  expect(posted).toEqual([{ name: "Campus Student", phone: "9000000001" }]);
+  await page.getByRole("button", { name: "Order updates" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Your updates" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog").getByText(/MINT-0001/)).toBeVisible();
+  await page.getByRole("button", { name: "Close order updates" }).click();
+  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Campus Student", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Your name", { exact: true }).fill("Updated Student");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Updated Student", exact: true }),
+  ).toBeVisible();
+  await noOverflow(page);
+});
+
+test("shared recipient has preparation controls beside scanned items and can complete handover", async ({
+  page,
+}) => {
+  const portion = {
+    ...units[1],
+    collector_name: "Verified Friend",
+    collector_id: "friend",
+    version: 7,
+    arrived_at: serverTime,
+    reference: order.reference,
+  };
+  const handovers: Record<string, unknown>[] = [];
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") return route.fulfill({ json: catalogue });
+    if (path === "/api/staff/worklist")
+      return route.fulfill({
+        json: portion.state === "collected" ? [] : [portion],
+      });
+    if (path === "/api/staff/resolve")
+      return route.fulfill({
+        json: {
+          units: [portion],
+          message: "Pickup QR accepted. They may be collecting for a friend.",
+        },
+      });
+    if (path === "/api/staff/preparation") {
+      portion.state =
+        route.request().postDataJSON().action === "start"
+          ? "preparing"
+          : "ready";
+      return route.fulfill({ json: { ok: true } });
+    }
+    if (path === "/api/staff/handover") {
+      handovers.push(route.request().postDataJSON());
+      portion.state = "collected";
+      return route.fulfill({ json: { collected: 1 } });
+    }
+    return route.fulfill({
+      json: {
+        ...dashboard,
+        actor: { ...actor, kind: "staff" },
+        roles: [{ role: "serving", canteen_id: "main", station_id: "tiffin" }],
+      },
+    });
+  });
+  await page.goto("/staff");
+  await page.getByText("Camera not working?", { exact: true }).click();
+  await page.getByLabel("Paste QR code", { exact: true }).fill("friend-pass");
+  await page.getByRole("button", { name: "Open pickup", exact: true }).click();
+  await expect(
+    page.getByText("Verified Friend", { exact: true }),
+  ).toBeVisible();
+  const check = page
+    .locator("label")
+    .filter({ hasText: "Dosa × 1" })
+    .locator("input");
+  await expect(check).toBeDisabled();
+  await page.getByRole("button", { name: "Start Dosa", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Mark Dosa ready", exact: true })
+    .click();
+  await expect(check).toBeEnabled();
+  await check.check();
+  await page.getByRole("button", { name: "Done · 1 item given" }).click();
+  expect(handovers[0]).toMatchObject({
+    stationId: "tiffin",
+    portions: [{ id: "unit-dosa", version: 7 }],
+  });
+  await expect(page.getByText("Dosa × 1", { exact: true })).toHaveCount(0);
 });

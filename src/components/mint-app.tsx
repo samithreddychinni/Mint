@@ -25,11 +25,14 @@ import {
   ChevronRight,
   ReceiptText,
   Store,
+  Pencil,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { InstallPrompt } from "@/components/install-prompt";
+import { ProfileForm, type Profile } from "@/components/profile-form";
 import {
   fulfillmentSummary,
   isClosed,
@@ -63,6 +66,7 @@ type Item = {
   note: string;
   paused: boolean;
   station_paused: boolean;
+  default_quantity: number;
 };
 type Role = {
   role: string;
@@ -129,6 +133,7 @@ type Ledger = {
 };
 type Me = {
   actor: { id: string; email: string; kind: string };
+  profile?: Profile;
   roles: Role[];
   orders: Order[];
   credits: Credit[];
@@ -257,13 +262,13 @@ export function MintApp() {
   const [collector, setCollector] = useState("");
   const [resolved, setResolved] = useState<Unit[]>([]);
   const [staffSelected, setStaffSelected] = useState<string[]>([]);
-  const [queueTab, setQueueTab] = useState("ready");
   const [now, setNow] = useState(() => Date.now());
   const [offset, setOffset] = useState(0);
   const [priceChanged, setPriceChanged] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLElement>(null);
   const passDialog = useRef<HTMLDialogElement>(null);
+  const updatesDialog = useRef<HTMLDialogElement>(null);
   const [pickupView, setPickupView] = useState("pickup");
   const video = useRef<HTMLVideoElement>(null);
   const scanControls = useRef<{ stop: () => void } | null>(null);
@@ -327,8 +332,20 @@ export function MintApp() {
       }
       if (current && selectedOrder)
         setDetail(await api<Detail>("orders/" + selectedOrder));
-      if (current && station && tab === "staff")
-        setWork(await api<Unit[]>("staff/worklist?station=" + station));
+      if (current && station && tab === "staff") {
+        const latest = await api<Unit[]>("staff/worklist?station=" + station);
+        setWork(latest);
+        setResolved((previous) =>
+          previous
+            .map((unit) => {
+              const found = latest.find((entry) => entry.id === unit.id);
+              return found && found.version === unit.version
+                ? { ...unit, ...found }
+                : unit;
+            })
+            .filter((unit) => unit.state !== "collected"),
+        );
+      }
       setFresh(new Date().toLocaleTimeString("en-IN"));
       return current;
     } catch (e) {
@@ -429,12 +446,9 @@ export function MintApp() {
     (r) => r.role === "manager" && r.canteen_id === canteen,
   );
   const serverNow = now + offset;
-  const queued = work.filter((u) =>
-    queueTab === "ready"
-      ? u.state === "ready" || (u.mode === "ready" && u.state === "pending")
-      : queueTab === "pending"
-        ? u.state === "pending" && u.mode === "made"
-        : u.state === queueTab,
+  const queued = work.filter(
+    (u) =>
+      u.mode === "made" && ["pending", "preparing", "ready"].includes(u.state),
   );
   const openOrder = (id: string) => {
     router.push("/orders/" + id);
@@ -561,11 +575,11 @@ export function MintApp() {
       scanControls.current = await reader.decodeFromVideoDevice(
         undefined,
         video.current!,
-        (result) => {
+        (result, _error, controls) => {
           if (result && !captured) {
             captured = true;
             setToken(result.getText());
-            scanControls.current?.stop();
+            controls.stop();
             setScanning(false);
             void resolveToken(result.getText());
           }
@@ -574,7 +588,7 @@ export function MintApp() {
     } catch {
       setScanning(false);
       setMessage(
-        "Camera unavailable. Paste the pass or use the order reference and collector email.",
+        "Camera could not open. Allow camera access and retry, or open Camera not working? below.",
       );
     }
   };
@@ -684,6 +698,7 @@ export function MintApp() {
       mutationKeys.clear();
       passDialog.current?.close();
       stopScan();
+      updatesDialog.current?.close();
       router.replace("/");
     });
   const ownActive =
@@ -793,6 +808,17 @@ export function MintApp() {
           >
             <RefreshCw />
           </Button>
+          {me && student && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Order updates"
+              onClick={() => updatesDialog.current?.showModal()}
+            >
+              <Bell />
+              {me.invitations.length > 0 && <span className="update-dot" />}
+            </Button>
+          )}
           {me && (
             <Button
               variant="ghost"
@@ -999,6 +1025,23 @@ export function MintApp() {
                 Amrita Vishwa Vidyapeetham · Coimbatore
               </p>
             </div>
+          </section>
+        ) : student && me.profile && !me.profile.completed_at ? (
+          <section className="paper profile-onboarding">
+            <PageHeading
+              eyebrow="WELCOME TO MINT"
+              title="Make MINT yours"
+              text="Add your name and mobile number once, then get straight to your order."
+            />
+            <ProfileForm
+              key={me.actor.id}
+              profile={me.profile}
+              onboarding
+              disabled={disabled}
+              save={(input) =>
+                run(() => api("profile", input), "Profile saved.")
+              }
+            />
           </section>
         ) : (
           <>
@@ -2012,7 +2055,13 @@ export function MintApp() {
                     {me.actor.email[0].toUpperCase()}
                   </span>
                   <div>
-                    <h2>{student ? "Student account" : "Staff account"}</h2>
+                    <h2>
+                      {me.profile?.completed_at
+                        ? me.profile.name
+                        : student
+                          ? "Student account"
+                          : "Staff account"}
+                    </h2>
                     <p>{me.actor.email}</p>
                     <p className="help-text">
                       {student
@@ -2022,6 +2071,19 @@ export function MintApp() {
                   </div>
                   <ShieldCheck />
                 </section>
+                {me.profile && (
+                  <section className="paper stack">
+                    <h2>Your details</h2>
+                    <ProfileForm
+                      key={me.actor.id}
+                      profile={me.profile}
+                      disabled={disabled}
+                      save={(input) =>
+                        run(() => api("profile", input), "Profile saved.")
+                      }
+                    />
+                  </section>
+                )}
                 {student && (
                   <button
                     className="account-link paper"
@@ -2172,21 +2234,26 @@ export function MintApp() {
                   </Button>
                   <Button
                     variant={staffView === "queue" ? "default" : "ghost"}
-                    onClick={() => setStaffView("queue")}
+                    onClick={() => {
+                      stopScan();
+                      setStaffView("queue");
+                    }}
                   >
                     <Clock />
-                    Queue
+                    Pending items ({queued.length})
                   </Button>
                 </div>{" "}
                 <div className="staff-workspace">
                   <div
                     className="paper space-y-4"
                     hidden={staffView !== "scan"}
+                    role="region"
+                    aria-label="Scanned pickup"
                   >
-                    <h3 className="text-xl font-bold">Look up a pickup</h3>
+                    <h3 className="text-xl font-bold">Scan. Give. Done.</h3>
                     <p className="text-xs text-muted-foreground">
-                      Scanning a valid pass checks in the collector and shows
-                      their portions. Confirm handover only after giving items.
+                      Scan the student’s pickup QR. They can collect for
+                      themselves or a friend.
                     </p>
                     <video
                       ref={video}
@@ -2203,74 +2270,81 @@ export function MintApp() {
                       <ScanLine size={18} />
                       {scanning ? "Stop camera" : "Scan collection QR"}
                     </Button>
-                    <div className="field">
-                      <label htmlFor="token">Collection pass</label>
-                      <Input
-                        id="token"
-                        value={token}
-                        onChange={(e) => setToken(e.target.value)}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <Button
-                      className="w-full"
-                      disabled={busy || !online || !token || !station}
-                      onClick={() => void resolveToken(token)}
-                    >
-                      Resolve pass
-                    </Button>
                     <details>
                       <summary className="text-sm cursor-pointer">
-                        Use order reference instead
+                        Camera not working?
                       </summary>
-                      <div className="space-y-3 mt-3">
-                        <label className="field">
-                          Order reference
-                          <Input
-                            value={reference}
-                            onChange={(e) => setReference(e.target.value)}
-                          />
-                        </label>
-                        <label className="field">
-                          Expected collector email
-                          <Input
-                            type="email"
-                            value={collector}
-                            onChange={(e) => setCollector(e.target.value)}
-                          />
-                        </label>
-                        <Button
-                          variant="outline"
-                          disabled={busy || !online || !reference || !collector}
-                          onClick={() =>
-                            void run(async () => {
-                              const r = await api<{
-                                units: Unit[];
-                                message: string;
-                              }>("staff/resolve", {
-                                stationId: station,
-                                reference,
-                                collector,
-                              });
-                              setResolved(r.units);
-                              setStaffSelected([]);
-                              setMessage(r.message);
-                            })
-                          }
-                        >
-                          Look up reference
-                        </Button>
+                      <div className="field">
+                        <label htmlFor="token">Paste QR code</label>
+                        <Input
+                          id="token"
+                          value={token}
+                          onChange={(e) => setToken(e.target.value)}
+                          autoComplete="off"
+                        />
                       </div>
+                      <Button
+                        className="w-full"
+                        disabled={busy || !online || !token || !station}
+                        onClick={() => void resolveToken(token)}
+                      >
+                        Open pickup
+                      </Button>
+                      <details>
+                        <summary className="text-sm cursor-pointer">
+                          No QR? Find an order
+                        </summary>
+                        <div className="space-y-3 mt-3">
+                          <label className="field">
+                            Order reference
+                            <Input
+                              value={reference}
+                              onChange={(e) => setReference(e.target.value)}
+                            />
+                          </label>
+                          <label className="field">
+                            Expected collector email
+                            <Input
+                              type="email"
+                              value={collector}
+                              onChange={(e) => setCollector(e.target.value)}
+                            />
+                          </label>
+                          <Button
+                            variant="outline"
+                            disabled={
+                              busy || !online || !reference || !collector
+                            }
+                            onClick={() =>
+                              void run(async () => {
+                                const r = await api<{
+                                  units: Unit[];
+                                  message: string;
+                                }>("staff/resolve", {
+                                  stationId: station,
+                                  reference,
+                                  collector,
+                                });
+                                setResolved(r.units);
+                                setStaffSelected([]);
+                                setMessage(r.message);
+                              })
+                            }
+                          >
+                            Look up reference
+                          </Button>
+                        </div>
+                      </details>
                     </details>
                     {resolved.length > 0 && (
                       <>
                         <div className="divider" />
                         <p className="text-sm font-bold">
-                          {resolved[0].collector_name} · {resolved[0].reference}
+                          {resolved[0].collector_name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Check collector identity. Select only portions
-                          physically handed over.
+                          This is the assigned pickup person, who may be a
+                          friend of the payer. Select only the items you give.
                         </p>
                         {resolved.map((u) => (
                           <label
@@ -2299,12 +2373,51 @@ export function MintApp() {
                             <span className="text-sm">
                               <strong>{u.name} × 1</strong>
                               <span className="block text-xs mt-1">
-                                {u.state} ·{" "}
-                                {u.arrived_at
-                                  ? "Arrived"
-                                  : "App check-in required"}{" "}
-                                · {u.token}
+                                {!u.arrived_at
+                                  ? "Scan their pickup QR to check in"
+                                  : u.mode === "ready" || u.state === "ready"
+                                    ? "Ready to give"
+                                    : u.state === "preparing"
+                                      ? "Preparing"
+                                      : "Needs preparation"}
+                                {u.mode === "made" &&
+                                  u.state !== "collected" && (
+                                    <span className="block">
+                                      Preparation token: {u.token}
+                                    </span>
+                                  )}
                               </span>
+                              {u.arrived_at &&
+                                u.mode === "made" &&
+                                ["pending", "preparing"].includes(u.state) && (
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() =>
+                                      void run(async () => {
+                                        await api("staff/preparation", {
+                                          id: u.id,
+                                          action:
+                                            u.state === "pending"
+                                              ? "start"
+                                              : "ready",
+                                        });
+                                        const current = await api<{
+                                          units: Unit[];
+                                        }>("staff/resolve", {
+                                          stationId: station,
+                                          token,
+                                        });
+                                        setResolved(current.units);
+                                      })
+                                    }
+                                  >
+                                    {u.state === "pending"
+                                      ? `Start ${u.name}`
+                                      : `Mark ${u.name} ready`}
+                                  </Button>
+                                )}
                             </span>
                           </label>
                         ))}
@@ -2332,7 +2445,8 @@ export function MintApp() {
                             }, "Handover confirmed. Do not give these portions to another collector.")
                           }
                         >
-                          Handed over: {staffSelected.length} portions
+                          Done · {staffSelected.length}{" "}
+                          {staffSelected.length === 1 ? "item" : "items"} given
                           <Check size={16} />
                         </Button>
                         <Button
@@ -2354,45 +2468,15 @@ export function MintApp() {
                     hidden={staffView !== "queue"}
                   >
                     <div>
-                      <h3 className="text-xl font-bold">Station worklist</h3>
+                      <h3 className="text-xl font-bold">Pending preparation</h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Persistent portion tokens · refreshes every five seconds
+                        Keep these items here while you serve the next student.
+                        Ready items need a pickup QR before handover.
                       </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {["pending", "preparing", "ready", "collected"].map(
-                        (t) => (
-                          <Button
-                            size="sm"
-                            key={t}
-                            variant={queueTab === t ? "default" : "outline"}
-                            onClick={() => setQueueTab(t)}
-                          >
-                            {t === "pending"
-                              ? "Awaiting prep"
-                              : t === "collected"
-                                ? "Recent handovers"
-                                : t === "ready"
-                                  ? "Ready"
-                                  : "Preparing"}{" "}
-                            (
-                            {
-                              work.filter((u) =>
-                                t === "ready"
-                                  ? u.state === "ready" ||
-                                    (u.mode === "ready" &&
-                                      u.state === "pending")
-                                  : u.state === t,
-                              ).length
-                            }
-                            )
-                          </Button>
-                        ),
-                      )}
                     </div>
                     {!queued.length && (
                       <p className="text-sm text-muted-foreground py-4">
-                        Nothing in this worklist right now.
+                        No items waiting for preparation.
                       </p>
                     )}
                     {queued.map((u) => (
@@ -2405,8 +2489,7 @@ export function MintApp() {
                           <Badge variant="outline">{u.token}</Badge>
                         </div>
                         <p className="text-xs">
-                          {u.collector_name} · {u.reference} · arrived{" "}
-                          {time(u.arrived_at)}
+                          {u.collector_name} · arrived {time(u.arrived_at)}
                         </p>
                         {u.overdue ? (
                           <p className="text-xs error">
@@ -2437,20 +2520,10 @@ export function MintApp() {
                               : "Mark ready"}
                           </Button>
                         ) : (
-                          u.state !== "collected" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={busy || !online}
-                              onClick={() => {
-                                setStaffView("scan");
-                                setResolved([u]);
-                                setStaffSelected([]);
-                              }}
-                            >
-                              Inspect for handover
-                            </Button>
-                          )
+                          <p className="help-text">
+                            Ready to give. Scan this student’s pickup QR to
+                            finish.
+                          </p>
                         )}
                       </div>
                     ))}
@@ -2485,6 +2558,14 @@ export function MintApp() {
                         item={item}
                         disabled={disabled}
                         run={run}
+                        saveSettings={(input) =>
+                          api(`manager/${canteen}`, {
+                            action: "item-settings",
+                            itemId: item.id,
+                            ...input,
+                            reason: "Manager edited menu item settings",
+                          })
+                        }
                         save={(quantity, expectedAvailable) =>
                           api(`manager/${canteen}`, {
                             action: "stock",
@@ -2522,92 +2603,324 @@ export function MintApp() {
           </>
         )}
       </main>
+      {me && (
+        <dialog
+          ref={updatesDialog}
+          className="pass-dialog"
+          aria-labelledby="updates-title"
+        >
+          <div className="dialog-heading">
+            <h2 id="updates-title">Your updates</h2>
+            <Button
+              variant="ghost"
+              aria-label="Close order updates"
+              onClick={() => updatesDialog.current?.close()}
+            >
+              Close
+            </Button>
+          </div>
+          <p className="help-text">
+            Live order progress and pickup invitations while MINT is open.
+          </p>
+          <div className="stack">
+            {me.invitations.map((invitation) => (
+              <button
+                className="paper update-card"
+                key={invitation.id}
+                onClick={() => {
+                  updatesDialog.current?.close();
+                  setTab("orders");
+                }}
+              >
+                <Users />
+                <span>
+                  <strong>
+                    {invitation.sender_name || "A friend"} invited you to
+                    collect
+                  </strong>
+                  <small>
+                    {invitation.portions
+                      ?.map((portion) => portion.name)
+                      .join(", ")}{" "}
+                    · Accept in Orders
+                  </small>
+                </span>
+                <ChevronRight />
+              </button>
+            ))}
+            {me.orders.slice(0, 10).map((order) => (
+              <button
+                className="paper update-card"
+                key={order.id}
+                onClick={() => {
+                  updatesDialog.current?.close();
+                  openOrder(order.id);
+                }}
+              >
+                <ReceiptText />
+                <span>
+                  <strong>
+                    {fulfillmentSummary(order.state, order.fulfillment || [])}
+                  </strong>
+                  <small>
+                    {order.canteen_name} · {order.reference}
+                    {order.payer ? "" : " · Collecting for a friend"}
+                  </small>
+                </span>
+                <ChevronRight />
+              </button>
+            ))}
+            {!me.invitations.length && !me.orders.length && (
+              <p className="help-text">
+                You’re all caught up. Your order updates will appear here.
+              </p>
+            )}
+          </div>
+        </dialog>
+      )}
     </div>
   );
 }
+type ItemSettings = {
+  name: string;
+  price: number;
+  note: string;
+  paused: boolean;
+  defaultQuantity: number;
+  expectedSettings: string;
+};
 function StockEditor({
   item,
   disabled,
   run,
   save,
+  saveSettings,
 }: {
   item: Item;
   disabled: boolean;
   run: (fn: () => Promise<unknown>, success?: string) => Promise<void>;
   save: (quantity: number, expectedAvailable: number) => Promise<unknown>;
+  saveSettings: (input: ItemSettings) => Promise<unknown>;
 }) {
   const [quantity, setQuantity] = useState<string | null>(null);
   const [expected, setExpected] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    name: item.name,
+    price: String(item.price / 100),
+    note: item.note,
+    paused: item.paused,
+    defaultQuantity: String(item.default_quantity ?? 0),
+    expectedSettings: "",
+  });
   const changed = quantity !== null && Number(quantity) !== item.available;
   const stale = expected !== null && expected !== item.available;
   return (
-    <form
-      className="paper stock-editor"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (stale || !changed || quantity === null || expected === null) return;
-        void run(async () => {
-          await save(Number(quantity), expected);
-          setQuantity(null);
-          setExpected(null);
-        }, `${item.name} availability updated.`);
-      }}
-    >
+    <section className="paper stock-editor">
       <div className="stock-item-heading">
         <div>
           <h2>{item.name}</h2>
           <p className="help-text">
-            {item.station_name} · {money(item.price)}
+            {item.station_name} · {money(item.price)} ·{" "}
+            {item.paused ? "Unavailable" : "On the menu"}
           </p>
         </div>
-        <Badge variant="outline">{item.available} available</Badge>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={`Edit ${item.name} details`}
+          disabled={disabled}
+          aria-expanded={editing}
+          onClick={() => {
+            if (!editing)
+              setDraft({
+                name: item.name,
+                price: String(item.price / 100),
+                note: item.note,
+                paused: item.paused,
+                defaultQuantity: String(item.default_quantity ?? 0),
+                expectedSettings: JSON.stringify([
+                  item.name,
+                  item.price,
+                  item.note,
+                  item.paused,
+                  item.default_quantity ?? 0,
+                ]),
+              });
+            setEditing((value) => !value);
+          }}
+        >
+          <Pencil size={18} />
+        </Button>
       </div>
-      <div className="stock-item-controls">
-        <label className="field">
-          Available portions for {item.name}
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={10000}
-            step={1}
-            required
-            disabled={disabled}
-            value={quantity ?? item.available}
-            onChange={(event) => {
-              setQuantity(event.target.value);
-              setExpected((value) => value ?? item.available);
-            }}
-          />
-        </label>
-        {stale ? (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (stale || !changed || quantity === null || expected === null)
+            return;
+          void run(async () => {
+            await save(Number(quantity), expected);
+            setQuantity(null);
+            setExpected(null);
+          }, `${item.name} availability updated.`);
+        }}
+      >
+        <div className="stock-item-controls">
+          <label className="field">
+            Available portions for {item.name}
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={10000}
+              step={1}
+              required
+              disabled={disabled}
+              value={quantity ?? item.available}
+              onChange={(event) => {
+                setQuantity(event.target.value);
+                setExpected((value) => value ?? item.available);
+              }}
+            />
+          </label>
+          {stale ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={(event) => {
+                event.preventDefault();
+                setExpected(item.available);
+              }}
+            >
+              Review latest stock
+            </Button>
+          ) : (
+            <Button
+              disabled={disabled || !changed}
+              aria-label={`Save ${item.name} availability`}
+            >
+              Save
+            </Button>
+          )}
+        </div>
+        {stale && (
+          <p className="help-text" role="status">
+            Availability changed to {item.available}. Review it before saving
+            your quantity.
+          </p>
+        )}
+      </form>
+      {editing && (
+        <form
+          className="stack item-settings"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(async () => {
+              await saveSettings({
+                ...draft,
+                name: draft.name.trim(),
+                price: Math.round(Number(draft.price) * 100),
+                defaultQuantity: Number(draft.defaultQuantity),
+              });
+              setEditing(false);
+            }, "Item details updated.");
+          }}
+        >
+          <label className="field">
+            Item name
+            <Input
+              value={draft.name}
+              onChange={(event) =>
+                setDraft({ ...draft, name: event.target.value })
+              }
+              required
+              minLength={1}
+              maxLength={100}
+              disabled={disabled}
+            />
+          </label>
+          <label className="field">
+            Price in rupees
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={draft.price}
+              min={0.01}
+              max={10000}
+              step={0.01}
+              onChange={(event) =>
+                setDraft({ ...draft, price: event.target.value })
+              }
+              required
+              disabled={disabled}
+            />
+          </label>
+          <label className="field">
+            Menu note
+            <Input
+              value={draft.note}
+              maxLength={300}
+              onChange={(event) =>
+                setDraft({ ...draft, note: event.target.value })
+              }
+              disabled={disabled}
+            />
+          </label>
+          <label className="credit-toggle">
+            <input
+              type="checkbox"
+              checked={!draft.paused}
+              onChange={(event) =>
+                setDraft({ ...draft, paused: !event.target.checked })
+              }
+              disabled={disabled}
+            />
+            Available for new orders
+          </label>
+          <label className="field">
+            Default portions
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={draft.defaultQuantity}
+              min={0}
+              max={10000}
+              step={1}
+              onChange={(event) =>
+                setDraft({ ...draft, defaultQuantity: event.target.value })
+              }
+              required
+              disabled={disabled}
+            />
+          </label>
+          <p className="help-text">
+            Default is a saved starting quantity. It does not reset stock
+            automatically or change paid orders.
+          </p>
           <Button
             type="button"
             variant="outline"
             disabled={disabled}
-            onClick={(event) => {
-              event.preventDefault();
+            onClick={() => {
+              setQuantity(draft.defaultQuantity);
               setExpected(item.available);
             }}
           >
-            Review latest stock
+            Use default for stock
           </Button>
-        ) : (
+          <Button disabled={disabled}>Save item details</Button>
           <Button
-            disabled={disabled || !changed}
-            aria-label={`Save ${item.name} availability`}
+            type="button"
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => setEditing(false)}
           >
-            Save
+            Close editor
           </Button>
-        )}
-      </div>
-      {stale && (
-        <p className="help-text" role="status">
-          Availability changed to {item.available}. Review it before saving your
-          quantity.
-        </p>
+        </form>
       )}
-    </form>
+    </section>
   );
 }
 function PageHeading({

@@ -36,6 +36,13 @@
       "when": 1791645329022,
       "tag": "0004_hosted_worker",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791664158081,
+      "tag": "0005_thick_vertigo",
+      "breakpoints": true
     }
   ]
 }

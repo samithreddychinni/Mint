@@ -94,9 +94,10 @@ export async function resolvePass(
         String(pass.order_id),
         String(pass.collector_id),
       );
-      units = units.map(
-        (unit) => arrived.find((u) => u.id === unit.id) || unit,
-      );
+      units = units.map((unit) => ({
+        ...unit,
+        ...arrived.find((u) => u.id === unit.id),
+      }));
       insist(
         units.every((u) => u.arrived_at),
         "ARRIVAL_EXPIRED",
@@ -125,7 +126,7 @@ export async function resolvePass(
       units,
       message: units.some((u) => !u.arrived_at)
         ? "A reference lookup cannot confirm arrival. Scan the collector's pickup pass or ask them to check in with location."
-        : "Arrival confirmed. Verify the collector identity. Confirm only the portions you give to the collector.",
+        : "Pickup QR accepted. Give the selected ready items to the person named on this pass. They may be collecting for a friend.",
     };
   });
 }
@@ -445,6 +446,26 @@ export async function manage(
           remaining -= removed;
         }
       }
+    } else if (action === "item-settings") {
+      const item = await one(
+        tx,
+        sql`select * from mint.items where id=${input.itemId} and canteen_id=${canteen} for update`,
+      );
+      insist(item, "NOT_FOUND", "Item not found in this canteen.", 404);
+      insist(
+        JSON.stringify([
+          item.name,
+          item.price,
+          item.note,
+          item.paused,
+          item.default_quantity,
+        ]) === input.expectedSettings,
+        "ITEM_CHANGED",
+        "The item changed while you were editing. Close the editor and reopen it to review the latest details.",
+      );
+      await tx.execute(
+        sql`update mint.items set name=${input.name},price=${input.price},note=${input.note},paused=${input.paused},default_quantity=${input.defaultQuantity} where id=${input.itemId} and canteen_id=${canteen}`,
+      );
     } else if (action === "pause") {
       if (input.itemId)
         await tx.execute(

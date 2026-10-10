@@ -12,6 +12,21 @@ async function login(page: Page, email: string) {
     .fill(accounts[email].password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  if (email.endsWith("@demo.mint.invalid")) {
+    const me = await (await page.request.get("/api/me")).json();
+    if (me.profile && !me.profile.completed_at) {
+      await page
+        .getByLabel("Your name", { exact: true })
+        .fill("Demo " + email.split("@")[0]);
+      await page
+        .getByLabel("Mobile number", { exact: true })
+        .fill("9000000001");
+      await page.getByRole("button", { name: "Continue to MINT" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Make MINT yours" }),
+      ).toHaveCount(0);
+    }
+  }
 }
 async function noOverflow(page: Page) {
   expect(
@@ -128,7 +143,7 @@ test("serving mobile interface uses scoped worklists and no arrival control", as
   ).toBeVisible();
   await expect(
     page.getByText(
-      "Scanning a valid pass checks in the collector and shows their portions. Confirm handover only after giving items.",
+      "Scan the student’s pickup QR. They can collect for themselves or a friend.",
     ),
   ).toBeVisible();
   await expect(
@@ -253,7 +268,11 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     ).toBeVisible();
     await friend
       .getByRole("button")
-      .filter({ hasText: view.order.reference })
+      .filter({
+        hasText: view.units.find(
+          (unit: { mode: string }) => unit.mode === "made",
+        ).token,
+      })
       .first()
       .click();
     await friendContext.setGeolocation({
@@ -294,15 +313,16 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
         ).json(),
       orderId,
     );
+    await staff.getByText("Camera not working?", { exact: true }).click();
     await staff
-      .getByLabel("Collection pass", { exact: true })
+      .getByLabel("Paste QR code", { exact: true })
       .fill(
         studentPass.find(
           (p: { stationName: string }) => p.stationName === "Drinks",
         ).token,
       );
     await staff
-      .getByRole("button", { name: "Resolve pass", exact: true })
+      .getByRole("button", { name: "Open pickup", exact: true })
       .click();
     await expect(
       staff.getByText(
@@ -310,9 +330,7 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
       ),
     ).toBeVisible();
     await staff.locator("input[type=checkbox]").first().check();
-    await staff
-      .getByRole("button", { name: "Handed over: 1 portions" })
-      .click();
+    await staff.getByRole("button", { name: "Done · 1 item given" }).click();
     await expect(
       staff.getByText(
         "Handover confirmed. Do not give these portions to another collector.",
@@ -331,15 +349,13 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
       orderId,
     );
     await staff
-      .getByLabel("Collection pass", { exact: true })
+      .getByLabel("Paste QR code", { exact: true })
       .fill(friendPass[0].token);
     await staff
-      .getByRole("button", { name: "Resolve pass", exact: true })
+      .getByRole("button", { name: "Open pickup", exact: true })
       .click();
     await staff.locator("input[type=checkbox]").first().check();
-    await staff
-      .getByRole("button", { name: "Handed over: 1 portions" })
-      .click();
+    await staff.getByRole("button", { name: "Done · 1 item given" }).click();
     await expect(
       staff.getByText(
         "Handover confirmed. Do not give these portions to another collector.",
@@ -350,29 +366,51 @@ test("connected partial pickup: credit checkout, invitation, app geofence, stati
     );
     await login(tiffin, "main.station3@staff.demo.invalid");
     await tiffin.getByRole("link", { name: "Serving", exact: true }).click();
-    await tiffin.getByRole("button", { name: "Queue", exact: true }).click();
-    await tiffin.getByRole("button", { name: /^Awaiting prep/ }).click();
+    await tiffin.getByRole("button", { name: /^Pending items/ }).click();
     await tiffin
       .locator("div.border.rounded-lg")
-      .filter({ hasText: view.order.reference })
+      .filter({
+        hasText: view.units.find(
+          (unit: { mode: string }) => unit.mode === "made",
+        ).token,
+      })
       .getByRole("button", { name: "Start preparation", exact: true })
       .click();
-    await tiffin.getByRole("button", { name: /^Preparing/ }).click();
     await tiffin
       .locator("div.border.rounded-lg")
-      .filter({ hasText: view.order.reference })
+      .filter({
+        hasText: view.units.find(
+          (unit: { mode: string }) => unit.mode === "made",
+        ).token,
+      })
       .getByRole("button", { name: "Mark ready", exact: true })
       .click();
-    await tiffin.getByRole("button", { name: /^Ready/ }).click();
+    const madePasses = await payer.evaluate(
+      async (id) =>
+        await (
+          await fetch("/api/orders/" + id + "/passes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          })
+        ).json(),
+      orderId,
+    );
+    const madePass = madePasses.find(
+      (pass: { stationName: string }) => pass.stationName === "Tiffin",
+    );
     await tiffin
-      .locator("div.border.rounded-lg")
-      .filter({ hasText: view.order.reference })
-      .getByRole("button", { name: "Inspect for handover" })
+      .getByRole("button", { name: "Scan pickup", exact: true })
+      .click();
+    await tiffin.getByText("Camera not working?", { exact: true }).click();
+    await tiffin
+      .getByLabel("Paste QR code", { exact: true })
+      .fill(madePass.token);
+    await tiffin
+      .getByRole("button", { name: "Open pickup", exact: true })
       .click();
     await tiffin.locator("input[type=checkbox]").first().check();
-    await tiffin
-      .getByRole("button", { name: "Handed over: 1 portions" })
-      .click();
+    await tiffin.getByRole("button", { name: "Done · 1 item given" }).click();
     await expect(
       tiffin.getByText(
         "Handover confirmed. Do not give these portions to another collector.",
