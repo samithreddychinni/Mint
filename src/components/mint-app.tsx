@@ -813,6 +813,7 @@ export function MintApp() {
               variant="ghost"
               size="icon"
               aria-label="Order updates"
+              className="relative"
               onClick={() => updatesDialog.current?.showModal()}
             >
               <Bell />

@@ -777,6 +777,14 @@ test("student completes private profile once, edits it and opens live in-app upd
       completed_at: null as string | null,
     },
     orders: [order],
+    invitations: [
+      {
+        id: "incoming",
+        state: "pending",
+        sender_name: "Campus Friend",
+        portions: [{ name: "Dosa", station: "Tiffin" }],
+      },
+    ],
   };
   const posted: Record<string, unknown>[] = [];
   await page.route("**/api/**", (route) => {
@@ -808,9 +816,20 @@ test("student completes private profile once, edits it and opens live in-app upd
     page.getByRole("heading", { name: "What sounds good?" }),
   ).toBeVisible();
   expect(posted).toEqual([{ name: "Campus Student", phone: "9000000001" }]);
-  await page.getByRole("button", { name: "Order updates" }).click();
+  await page
+    .getByRole("button", { name: "Order updates", exact: true })
+    .click();
+  const bell = await page
+    .getByRole("button", { name: "Order updates", exact: true })
+    .boundingBox();
+  const dot = await page.locator(".update-dot").boundingBox();
+  expect(dot!.x).toBeGreaterThanOrEqual(bell!.x);
+  expect(dot!.x + dot!.width).toBeLessThanOrEqual(bell!.x + bell!.width);
   await expect(
     page.getByRole("dialog", { name: "Your updates" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("Campus Friend invited you to collect"),
   ).toBeVisible();
   await expect(page.getByRole("dialog").getByText(/MINT-0001/)).toBeVisible();
   await page.getByRole("button", { name: "Close order updates" }).click();
