@@ -1,3 +1,4 @@
+import { CREDIT_POLICY } from "../src/lib/credit-policy";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
@@ -34,6 +35,7 @@ try {
     sql`insert into mint.batches(id,item_id,total) values(${batch},${item},1)`,
   );
   const o = await hold(payer, {
+    policy: CREDIT_POLICY,
     canteenId: fixture,
     lines: [{ itemId: item, quantity: 1, price: 4000 }],
     credit: 0,

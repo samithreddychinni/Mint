@@ -292,6 +292,7 @@ async function dispatch(request: NextRequest, segments: string[]) {
       const c = z
         .object({
           canteenId: uuid,
+          policy: z.string().max(100).optional(),
           lines: z
             .array(
               z.object({

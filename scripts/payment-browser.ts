@@ -1,3 +1,4 @@
+import { CREDIT_POLICY } from "../src/lib/credit-policy";
 import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
 const accounts = JSON.parse(readFileSync(".local/demo-accounts.json", "utf8"));
@@ -20,7 +21,7 @@ await page.evaluate(async (password) => {
 }, accounts["second@demo.mint.invalid"].password);
 await page.waitForURL("**/menu");
 await page.getByRole("button", { name: "Sign out" }).waitFor();
-const result = await page.evaluate(async () => {
+const result = await page.evaluate(async (policy) => {
   const catalogue = await (await fetch("/api/catalogue")).json();
   const c = catalogue.canteens.find((c: { name: string }) => c.name === "Main");
   const item = catalogue.items.find(
@@ -31,6 +32,7 @@ const result = await page.evaluate(async () => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      policy,
       canteenId: c.id,
       lines: [{ itemId: item.id, quantity: 1, price: item.price }],
       credit: 0,
@@ -38,7 +40,7 @@ const result = await page.evaluate(async () => {
     }),
   });
   return { status: r.status, order: await r.json() };
-});
+}, CREDIT_POLICY);
 if (result.status !== 200) {
   console.log({
     status: result.status,

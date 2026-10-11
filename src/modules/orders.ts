@@ -19,6 +19,7 @@ import { account, move, expireCredits } from "./credits";
 import { insist } from "../lib/errors";
 import { CREDIT_POLICY, missedPickupCredit } from "../lib/credit-policy";
 export type Cart = {
+  policy?: string;
   canteenId: string;
   lines: { itemId: string; quantity: number; price: number }[];
   credit: number;
@@ -161,6 +162,11 @@ export async function hold(a: Actor, cart: Cart) {
         );
         return prior;
       }
+      insist(
+        cart.policy === CREDIT_POLICY,
+        "POLICY_CHANGED",
+        "Pickup rules changed. Reload this page before placing a new order.",
+      );
       const policy = await orderLimits(tx, a);
       const quantity = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
       insist(

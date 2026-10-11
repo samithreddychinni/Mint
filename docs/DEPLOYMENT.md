@@ -157,7 +157,7 @@ Physical Android interaction, actual long-term student history and large simulta
 
 ## Wallet credit expiry and missed-pickup fines
 
-Migrations `0008_great_morbius` and `0009_yielding_pete_wisdom` must run before deploying the backend. They add private credit lots, checkout allocations, ledger processing markers, and portion-level credit/fine amounts. Existing balances receive 30 days from migration; historical refunds are not reduced. Orders already placed retain their original policy. New orders snapshot `credit-30d-missed-10-v2-25+5`.
+Migrations `0008_great_morbius` and `0009_yielding_pete_wisdom` must run before deploying the backend. They add private credit lots, checkout allocations, ledger processing markers, and portion-level credit/fine amounts. Existing balances receive 30 days from migration; historical refunds are not reduced. Orders already placed retain their original policy. New orders snapshot `credit-30d-missed-10-v3-25+5`. Checkout sends this policy version after displaying the terms; an older open tab must reload before it can create a new order. Existing checkout retries retain their original terms.
 
 Each new credit expires 30 days after issue. Checkout spends the earliest expiry first. Reserved credit can complete its existing three-minute checkout. Releasing a hold restores its original expiry; credit whose deadline has passed expires immediately rather than receiving another 30 days. Account reads, checkout and the existing worker enforce expiry with the same transaction locks. Expiry produces a negative ledger entry.
 

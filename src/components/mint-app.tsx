@@ -1672,6 +1672,7 @@ export function MintApp() {
                             void run(async () => {
                               checkoutKey.current ||= crypto.randomUUID();
                               const order = await api<Order>("checkouts", {
+                                policy: CREDIT_POLICY,
                                 canteenId: canteen,
                                 lines: Object.entries(cart).map(
                                   ([itemId, line]) => ({ itemId, ...line }),

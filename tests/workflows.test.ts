@@ -29,6 +29,7 @@ import { signature } from "../src/lib/razorpay";
 import { createHmac } from "node:crypto";
 import { tick } from "../src/jobs/tick";
 import { updateProfile, profileSchema } from "../src/modules/profiles";
+import { CREDIT_POLICY } from "../src/lib/credit-policy";
 import { account, move } from "../src/modules/credits";
 const fixtures: string[] = [];
 const profiles: string[] = [];
@@ -97,6 +98,7 @@ const cart = (
   qty = 1,
   credit = qty * 500,
 ) => ({
+  policy: CREDIT_POLICY,
   canteenId: f.c,
   lines: [{ itemId: f.item, quantity: qty, price: 500 }],
   credit,
@@ -1844,4 +1846,31 @@ test("late captured payment cannot spend expired credit and retains one external
   assert.equal(ac.available, 0);
   assert.equal(ac.reserved, 0);
   assert.equal((await portions(o.id))[0].missed_pickup_fine, 0);
+});
+
+test("new checkout requires disclosed credit policy while legacy checkout retries retain their original terms", async () => {
+  const f = await fixture();
+  const request = cart(f);
+  await assert.rejects(
+    hold(f.payer, { ...request, policy: undefined }),
+    safeError("POLICY_CHANGED"),
+  );
+  assert.equal(
+    (
+      await one(
+        db,
+        sql`select count(*)::int n from mint.orders where canteen_id=${f.c}`,
+      )
+    ).n,
+    0,
+  );
+  const o = await hold(f.payer, request);
+  const legacy = { ...request, policy: undefined };
+  const { hash } = await import("../src/modules/core");
+  await db.execute(
+    sql`update mint.orders set policy='demo-credit-v1-25+5',request_hash=${hash(JSON.stringify({ ...legacy, key: undefined }))} where id=${o.id}`,
+  );
+  const retry = await hold(f.payer, legacy);
+  assert.equal(retry.id, o.id);
+  assert.equal(retry.policy, "demo-credit-v1-25+5");
 });

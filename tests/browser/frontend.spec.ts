@@ -287,6 +287,7 @@ test("credit checkout sends prices and quantities, location check-in and portion
   expect(checkout).toMatchObject({
     canteenId: "main",
     credit: 9000,
+    policy: "credit-30d-missed-10-v3-25+5",
     lines: [
       { itemId: "juice", quantity: 1, price: 4000 },
       { itemId: "dosa", quantity: 1, price: 5000 },
@@ -1590,7 +1591,7 @@ test("wallet shows per-credit expiry and missed-pickup receipt separates credit 
           ? catalogue
           : path === "/api/orders/order-1"
             ? {
-                order: { ...order, policy: "credit-30d-missed-10-v2-25+5" },
+                order: { ...order, policy: "credit-30d-missed-10-v3-25+5" },
                 units: expired,
                 invitations: [],
                 resolutions: [],

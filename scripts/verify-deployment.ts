@@ -1,3 +1,4 @@
+import { CREDIT_POLICY } from "../src/lib/credit-policy";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHmac, randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
@@ -99,6 +100,7 @@ try {
   const checkout = existing
     ? (await buyer.call(`orders/${existing.id}`)).order
     : await buyer.call("checkouts", {
+        policy: CREDIT_POLICY,
         canteenId: canteen.id,
         lines: [{ itemId: juice.id, quantity: 1, price: juice.price }],
         credit: juice.price,
