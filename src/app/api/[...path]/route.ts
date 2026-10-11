@@ -221,8 +221,20 @@ async function dispatch(request: NextRequest, segments: string[]) {
           "Use your @cb.students.amrita.edu address.",
           400,
         );
-        await rate("otp-request:" + hash(auth.email), 1, 60);
-        await rate("otp-hour:" + hash(auth.email), 5, 3600);
+        await rate(
+          "otp-request:" + hash(auth.email),
+          1,
+          60,
+          (wait) =>
+            `Please wait ${wait} seconds before requesting another sign-in code.`,
+        );
+        await rate(
+          "otp-hour:" + hash(auth.email),
+          5,
+          3600,
+          (wait) =>
+            `You have reached the limit of five sign-in codes per hour. Try again in about ${Math.ceil(wait / 60)} minutes.`,
+        );
         const { error } = await client.auth.signInWithOtp({
           email: auth.email,
           options: { shouldCreateUser: true },

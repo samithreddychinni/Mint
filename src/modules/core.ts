@@ -76,15 +76,22 @@ export async function audit(
     sql`insert into mint.audit_events(actor_id,action,entity,source,data) values(${a?.id || null},${action},${entity},${source},${JSON.stringify(data)}::jsonb) on conflict(source) do nothing`,
   );
 }
-export async function rate(key: string, limit: number, seconds: number) {
+export async function rate(
+  key: string,
+  limit: number,
+  seconds: number,
+  limitMessage?: (retryAfter: number) => string,
+) {
   const row = await one(
     db,
-    sql`insert into mint.rate_limits(key,count,reset_at) values(${key},1,clock_timestamp()+${seconds}*interval '1 second') on conflict(key) do update set count=case when mint.rate_limits.reset_at<=clock_timestamp() then 1 else mint.rate_limits.count+1 end,reset_at=case when mint.rate_limits.reset_at<=clock_timestamp() then clock_timestamp()+${seconds}*interval '1 second' else mint.rate_limits.reset_at end returning count`,
+    sql`insert into mint.rate_limits(key,count,reset_at) values(${key},1,clock_timestamp()+${seconds}*interval '1 second') on conflict(key) do update set count=case when mint.rate_limits.reset_at<=clock_timestamp() then 1 else mint.rate_limits.count+1 end,reset_at=case when mint.rate_limits.reset_at<=clock_timestamp() then clock_timestamp()+${seconds}*interval '1 second' else mint.rate_limits.reset_at end returning count,greatest(1,ceil(extract(epoch from(reset_at-clock_timestamp()))))::int retry_after`,
   );
+  const retryAfter = Math.max(1, Number(row?.retry_after ?? seconds));
   insist(
     Number(row?.count) <= limit,
     "RATE_LIMITED",
-    "Too many attempts. Wait before trying again.",
+    limitMessage?.(retryAfter) ??
+      `Too many attempts. Try again in about ${Math.ceil(retryAfter / 60)} minutes.`,
     429,
   );
 }
