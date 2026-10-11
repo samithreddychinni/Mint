@@ -72,6 +72,7 @@ const actor = {
 const order = {
   id: "order-1",
   reference: "MINT-0001",
+  created_at: serverTime,
   state: "confirmed",
   payer: true,
   canteen_id: "main",

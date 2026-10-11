@@ -113,6 +113,7 @@ type Order = {
   policy?: string;
   id: string;
   reference: string;
+  created_at: string;
   state: string;
   total?: number;
   credit?: number;
@@ -195,6 +196,13 @@ const time = (s: string | null) =>
         timeZone: "Asia/Kolkata",
       })
     : "—";
+const orderDate = (s: string) =>
+  new Date(s).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
 class ApiError extends Error {
   constructor(
     public code: string,
@@ -1084,9 +1092,13 @@ export function MintApp() {
     >
       <header className="app-header">
         <Link href="/" className="app-brand" aria-label="MINT home">
-          <span className="brand-symbol">
-            m<span>✳</span>
-          </span>
+          <Image
+            className="brand-symbol"
+            src="/icon.svg"
+            width={34}
+            height={34}
+            alt=""
+          />
           mint<span className="brand-dot">.</span>
         </Link>
         <span className="header-context">
@@ -1170,7 +1182,13 @@ export function MintApp() {
         {!authReady ||
         (!catalogue.serverTime && ["menu", "cart", "manager"].includes(tab)) ? (
           <div className="app-loading" role="status">
-            <span className="brand-symbol">m✳</span>
+            <Image
+              className="brand-symbol"
+              src="/icon.svg"
+              width={34}
+              height={34}
+              alt=""
+            />
             <p>Opening MINT…</p>
             {!catalogue.serverTime && <span>Loading the menu…</span>}
           </div>
@@ -1456,6 +1474,7 @@ export function MintApp() {
                         <article
                           key={item.id}
                           className={`food-card ${unavailable ? "unavailable" : ""}`}
+                          data-in-cart={!!cart[item.id]?.quantity}
                         >
                           <div className={`food-art art-${index % 3}`}>
                             <FoodIllustration name={item.name} />
@@ -1867,7 +1886,13 @@ export function MintApp() {
                       {pickupView === "pickup" &&
                         detail.order.state === "confirmed" &&
                         !isClosed(detail.units) && (
-                          <section className="arrival-card">
+                          <section
+                            className="arrival-card"
+                            data-arrived={
+                              ownActive.length > 0 &&
+                              ownActive.every((u) => !!u.arrived_at)
+                            }
+                          >
                             <div>
                               <p className="eyebrow">NEXT STEP</p>
                               <h2>
@@ -2065,7 +2090,16 @@ export function MintApp() {
                                         : ""}
                                     </small>
                                   </span>
-                                  <Badge variant="secondary">
+                                  <Badge
+                                    variant="secondary"
+                                    data-state={
+                                      detail.order.state === "confirmed" &&
+                                      unit.state === "pending" &&
+                                      unit.mode === "ready"
+                                        ? "ready"
+                                        : unit.state
+                                    }
+                                  >
                                     {detail.order.state !== "confirmed" &&
                                     unit.state === "pending"
                                       ? "Not confirmed"
@@ -2440,14 +2474,6 @@ export function MintApp() {
                           onClick={() => openOrder(order.id)}
                         >
                           <span className="order-card-top">
-                            <span className="order-canteen">
-                              <Store size={17} />
-                              {order.canteen_name ||
-                                catalogue.canteens.find(
-                                  (site) => site.id === order.canteen_id,
-                                )?.name}{" "}
-                              canteen
-                            </span>
                             <Badge variant="secondary">
                               {fulfillmentSummary(
                                 order.state,
@@ -2456,8 +2482,17 @@ export function MintApp() {
                             </Badge>
                           </span>
                           <span className="order-card-body">
-                            <strong>{order.reference}</strong>
+                            <strong>
+                              <Store size={18} aria-hidden="true" />
+                              {order.canteen_name ||
+                                catalogue.canteens.find(
+                                  (site) => site.id === order.canteen_id,
+                                )?.name ||
+                                "Canteen"}{" "}
+                              · {orderDate(order.created_at)}
+                            </strong>
                             <small>
+                              {order.reference} ·{" "}
                               {order.payer ? "Your order" : "Shared pickup"} ·{" "}
                               {(order.fulfillment || []).length} portions
                             </small>
