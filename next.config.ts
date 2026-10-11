@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
   outputFileTracingIncludes: { "/api/**": ["./certs/supabase-ca.crt"] },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "mint-amrita.vercel.app" }],
+        destination: "https://mint-campus-demo.vercel.app/:path*",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     const backend = process.env.BACKEND_URL;
     return {
