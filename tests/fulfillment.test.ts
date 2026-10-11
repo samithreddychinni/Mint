@@ -41,3 +41,19 @@ test("pickup summaries distinguish payment, partial collection and cancelled clo
     false,
   );
 });
+
+test("expired portions close the pickup and cannot appear as awaiting arrival", () => {
+  assert.equal(
+    fulfillmentSummary("confirmed", [{ state: "expired" }]),
+    "Pickup expired",
+  );
+  assert.equal(isClosed([{ state: "expired" }, { state: "collected" }]), true);
+  assert.equal(
+    fulfillmentSummary("confirmed", [
+      { state: "expired" },
+      { state: "collected" },
+    ]),
+    "Closed · uncollected portions",
+  );
+  assert.equal(isClosed([{ state: "expired" }, { state: "ready" }]), false);
+});

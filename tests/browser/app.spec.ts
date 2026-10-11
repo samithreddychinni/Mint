@@ -474,7 +474,9 @@ test("live campus replacement has exact canteen counts and searchable categories
   await login(page, "payer@demo.mint.invalid");
   await page.getByRole("button", { name: "Choose Main canteen" }).click();
   await expect(page.locator(".food-card")).toHaveCount(84);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByLabel("Menu category").selectOption("Today's special");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator(".food-card")).toHaveCount(7);
   await expect(
     page.getByRole("heading", { name: "Butter Naan", exact: true }),
@@ -483,11 +485,15 @@ test("live campus replacement has exact canteen counts and searchable categories
   await page.screenshot({ path: ".local/campus-menu-live.png" });
   await page.getByRole("button", { name: "Choose IT canteen" }).click();
   await expect(page.locator(".food-card")).toHaveCount(94);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByLabel("Menu category").selectOption("Tiffins");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator(".food-card")).toHaveCount(5);
   await page.getByRole("button", { name: "Choose MBA canteen" }).click();
   await expect(page.locator(".food-card")).toHaveCount(55);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByLabel("Menu category").selectOption("Sweets & puddings");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator(".food-card")).toHaveCount(5);
   await noOverflow(page);
 });

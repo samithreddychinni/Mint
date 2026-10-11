@@ -194,11 +194,15 @@ test("menu works at phone and desktop sizes, with readiness, stock, cart and off
     path: ".local/new-menu-desktop.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByRole("button", { name: "Ready now", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Dosa", exact: true }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByRole("button", { name: "All items", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Add Fresh juice" }).click();
   await page.getByRole("button", { name: /View cart/ }).click();
   await expect(page.getByText(/not a bank refund/)).toBeVisible();
@@ -1181,7 +1185,9 @@ test("full campus menu categories, canteen prices and manager search fit the fix
   ]) {
     await page.setViewportSize(viewport);
     await noOverflow(page);
-    await expect(page.getByLabel("Menu category")).toBeInViewport();
+    await expect(
+      page.getByRole("button", { name: "Filter menu", exact: true }),
+    ).toBeInViewport();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollHeight <= innerHeight,
@@ -1189,7 +1195,9 @@ test("full campus menu categories, canteen prices and manager search fit the fix
     ).toBeTruthy();
   }
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByLabel("Menu category").selectOption("Curries");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator(".food-card")).toHaveCount(6);
   const paneer = page.locator(".food-card").filter({
     has: page.getByRole("heading", {
@@ -1201,11 +1209,15 @@ test("full campus menu categories, canteen prices and manager search fit the fix
   await page.screenshot({ path: ".local/campus-menu-mobile.png" });
   await page.getByRole("button", { name: "Choose IT canteen" }).click();
   await expect(page.locator(".food-card")).toHaveCount(94);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await page.getByLabel("Menu category").selectOption("Tiffins");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator(".food-card")).toHaveCount(5);
   await page.getByRole("button", { name: "Choose MBA canteen" }).click();
   await expect(page.locator(".food-card")).toHaveCount(55);
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
   await expect(page.getByLabel("Menu category")).toHaveValue("");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   manager = true;
   await page.goto("/manager");
   await expect(page.locator(".stock-editor")).toHaveCount(84);
@@ -1273,6 +1285,9 @@ test("student ordering allowances explain active caps and block meal variants wi
   ).toBeEnabled();
   blocked = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Order updates", exact: true })
+    .click();
   await expect(
     page.getByText(
       "You have 2 active orders. Open Orders to finish a pickup or resume payment.",
@@ -1286,4 +1301,236 @@ test("student ordering allowances explain active caps and block meal variants wi
   await expect(
     page.getByRole("heading", { name: "Your orders", exact: true }),
   ).toBeVisible();
+});
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 360, height: 740 },
+  { width: 1440, height: 900 },
+]) {
+  test(`menu keeps seventy percent for food with pickup updates at ${viewport.width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.route("**/api/**", (route) =>
+      route.fulfill({
+        json: route.request().url().endsWith("catalogue")
+          ? {
+              ...catalogue,
+              items: Array.from({ length: 30 }, (_, i) => ({
+                ...catalogue.items[0],
+                id: `food-${i}`,
+                name: `Food ${i}`,
+              })),
+            }
+          : { ...dashboard, orders: [order] },
+      }),
+    );
+    await page.goto("/menu");
+    await expect(
+      page.getByRole("button", { name: "Add Food 0", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Search menu", exact: true }),
+    ).toBeInViewport();
+    const frame = await page.evaluate(() => {
+      const list = document.querySelector(".menu-grid")!;
+      const main = document.querySelector("main")!;
+      return {
+        menuRatio: list.getBoundingClientRect().height / innerHeight,
+        pageScroll: document.documentElement.scrollHeight > innerHeight,
+        mainScroll: main.scrollHeight > main.clientHeight,
+      };
+    });
+    expect(frame.menuRatio).toBeGreaterThanOrEqual(0.7);
+    expect(frame.pageScroll).toBe(false);
+    expect(frame.mainScroll).toBe(false);
+    await page
+      .getByRole("button", { name: "Order updates", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Your updates" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "2 order slots · Up to 6 portions per order · 2 main meals left",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Main · MINT-0001", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Close order updates" }).click();
+    await page.screenshot({
+      path: `.local/qa/compact-menu-${viewport.width}.png`,
+    });
+  });
+}
+
+test("notifications float above screens and dialogs, expire after three seconds and restart for a new message", async ({
+  page,
+  context,
+}) => {
+  await page.clock.install();
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      json: route.request().url().endsWith("catalogue") ? catalogue : dashboard,
+    }),
+  );
+  await page.goto("/menu");
+  await expect(
+    page.getByRole("button", { name: "Add Fresh juice" }),
+  ).toBeVisible();
+  const before = await page.locator(".menu-grid").boundingBox();
+  await context.setOffline(true);
+  const notification = page.locator(".app-toast");
+  await expect(notification).toHaveText(
+    /Offline. Data is stale. Actions are disabled./,
+  );
+  await expect(notification).toBeVisible();
+  expect(await page.locator(".menu-grid").boundingBox()).toEqual(before);
+  expect(
+    await notification.evaluate((el) => getComputedStyle(el).position),
+  ).toBe("fixed");
+  await page.getByRole("button", { name: "Filter menu", exact: true }).click();
+  await expect(notification).toBeVisible();
+  expect(await notification.evaluate((el) => el.matches(":popover-open"))).toBe(
+    true,
+  );
+  await page.clock.runFor(2000);
+  await expect(notification).toBeVisible();
+  await context.setOffline(false);
+  await expect(notification).toHaveText(/Back online./);
+  await page.clock.runFor(2000);
+  await expect(notification).toBeVisible();
+  await page.clock.runFor(1100);
+  await expect(notification).toHaveCount(0);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await context.setOffline(true);
+  await expect(notification).toBeVisible();
+  await page.getByRole("link", { name: "Orders", exact: true }).click();
+  await expect(notification).toBeVisible();
+  await page.clock.runFor(3100);
+  await expect(notification).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollHeight <= innerHeight,
+    ),
+  ).toBe(true);
+});
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 1440, height: 900 },
+]) {
+  test(`orders and pickup expose progress, next actions and private receipt at ${viewport.width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const pickupUnits = [
+      {
+        ...units[0],
+        state: "collected",
+        collected_at: serverTime,
+        arrived_at: serverTime,
+      },
+      { ...units[1], state: "preparing", arrived_at: serverTime },
+    ];
+    const currentOrder = { ...order, fulfillment: pickupUnits };
+    await page.route("**/api/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      return route.fulfill({
+        json:
+          path === "/api/catalogue"
+            ? catalogue
+            : path === "/api/orders/order-1"
+              ? {
+                  order: currentOrder,
+                  units: pickupUnits,
+                  invitations: [],
+                  resolutions: [],
+                  serverTime,
+                }
+              : { ...dashboard, orders: [currentOrder] },
+      });
+    });
+    await page.goto("/orders");
+    const card = page.locator(".order-row");
+    await expect(card).toContainText("Partially collected");
+    await expect(card).toContainText("1 collected · 1 remaining");
+    await noOverflow(page);
+    await page.screenshot({
+      path: `.local/qa/orders-redesign-${viewport.width}.png`,
+    });
+    await card.click();
+    await expect(
+      page.getByRole("heading", { name: "Your pickup", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Show my station passes" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "You’re checked in." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Check in through my app" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Portion progress")).toContainText(
+      "Collected1 / 2",
+    );
+    await noOverflow(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `.local/qa/pickup-redesign-${viewport.width}.png`,
+    });
+    await page.getByRole("button", { name: "Receipt", exact: true }).click();
+    await expect(page.locator(".receipt-lines")).toContainText(
+      "Fresh juice × 1",
+    );
+    await expect(page.locator(".receipt-lines")).toContainText("₹40.00");
+    await expect(
+      page.getByRole("heading", { name: "You’re checked in." }),
+    ).toHaveCount(0);
+  });
+}
+
+test("expired pickups appear in history and have no collection action", async ({
+  page,
+}) => {
+  const expiredUnits = units.map((unit) => ({ ...unit, state: "expired" }));
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      json: route.request().url().endsWith("catalogue")
+        ? catalogue
+        : route.request().url().includes("orders/order-1")
+          ? {
+              order,
+              units: expiredUnits,
+              invitations: [],
+              resolutions: [],
+              serverTime,
+            }
+          : { ...dashboard, orders: [{ ...order, fulfillment: expiredUnits }] },
+    }),
+  );
+  await page.goto("/orders");
+  await expect(page.locator(".order-row")).toHaveCount(0);
+  await page.getByRole("button", { name: "Past orders", exact: true }).click();
+  await expect(page.locator(".order-row")).toContainText("Pickup expired");
+  await page.locator(".order-row").click();
+  await expect(
+    page.getByRole("heading", { name: "Your pickup", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Show my station passes" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Check in through my app" }),
+  ).toHaveCount(0);
 });

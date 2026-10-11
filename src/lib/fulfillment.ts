@@ -18,8 +18,11 @@ export function fulfillmentSummary(
   if (!units.length) return "Confirmed";
   if (units.every((unit) => unit.state === "collected")) return "Completed";
   if (units.every((unit) => unit.state === "cancelled")) return "Canceled";
-  if (units.every((unit) => ["collected", "cancelled"].includes(unit.state)))
-    return "Closed · partial cancellation";
+  if (units.every((unit) => unit.state === "expired")) return "Pickup expired";
+  if (isClosed(units))
+    return units.some((unit) => unit.state === "expired")
+      ? "Closed · uncollected portions"
+      : "Closed · partial cancellation";
   if (units.some((unit) => unit.state === "collected"))
     return "Partially collected";
   if (units.some((unit) => unit.state === "preparing")) return "Preparing";
@@ -31,6 +34,8 @@ export function fulfillmentSummary(
 export function isClosed(units: FulfillmentState[] = []) {
   return (
     units.length > 0 &&
-    units.every((unit) => ["collected", "cancelled"].includes(unit.state))
+    units.every((unit) =>
+      ["collected", "cancelled", "expired"].includes(unit.state),
+    )
   );
 }

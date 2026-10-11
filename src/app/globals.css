@@ -406,16 +406,6 @@ button[data-variant="outline"] {
   margin-top: 8px;
   line-height: 1.5;
 }
-.menu-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-}
-.menu-heading .eyebrow,
-.day-stamp {
-  display: none;
-}
 .canteen-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -679,20 +669,6 @@ button[data-variant="outline"] {
 .cart-dock strong {
   margin-left: auto;
 }
-.active-pickup {
-  border: 1px solid #e8ccd7;
-  border-radius: 12px;
-  background: #fff0f5;
-  display: flex;
-  align-items: center;
-  text-align: left;
-  gap: 12px;
-  padding: 12px 16px;
-}
-.active-pickup > svg {
-  margin-left: auto;
-  flex-shrink: 0;
-}
 .paper {
   background: var(--card);
   border: 1px solid var(--border);
@@ -849,34 +825,6 @@ button[data-variant="outline"] {
   max-width: 350px;
   font-size: 14px;
   color: var(--muted-foreground);
-}
-.app-notice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: #fbebf1;
-  border: 1px solid #e8cbd6;
-  font-size: 14px;
-  position: sticky;
-  top: 0;
-  z-index: 12;
-}
-.app-notice > button {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  font-size: 24px;
-  min-width: 44px;
-}
-.offline-notice {
-  background: #f6ead3;
-  border: 1px solid #e8d4ad;
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 14px;
-  color: #7a572b;
 }
 .app-loading {
   min-height: 180px;
@@ -1038,16 +986,6 @@ a {
 }
 .order-row small {
   margin-top: 5px;
-}
-.order-icon {
-  background: var(--accent);
-  padding: 12px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-}
-.order-icon svg {
-  width: 20px;
 }
 .invitation-card {
   display: flex;
@@ -1426,10 +1364,6 @@ a {
   .app-content[data-has-cart="true"] {
     padding-bottom: 70px;
   }
-  .menu-heading .screen-subtitle {
-    font-size: 12px;
-    margin-top: 5px;
-  }
   .canteen-switch {
     gap: 8px;
   }
@@ -1625,9 +1559,6 @@ a {
     width: 18px;
     flex-shrink: 0;
   }
-  .order-icon {
-    padding: 10px;
-  }
   .auth-content {
     max-width: 440px;
     padding: 20px 24px;
@@ -1751,12 +1682,6 @@ a {
     gap: 8px;
     padding-top: 10px;
   }
-  .menu-heading h1 {
-    font-size: 25px;
-  }
-  .menu-heading .screen-subtitle {
-    display: none;
-  }
   .menu-toolbar > div:first-child {
     display: none;
   }
@@ -1769,16 +1694,6 @@ a {
   }
 }
 @media (max-height: 500px) {
-  .app-content[data-screen="menu"] {
-    overflow: auto;
-  }
-  .app-content[data-screen="menu"] .menu-grid {
-    flex: none;
-    overflow: visible;
-  }
-  .app-content[data-screen="menu"][data-has-cart="true"] {
-    padding-bottom: 80px;
-  }
   .app-nav a {
     min-height: 44px;
     padding: 3px;
@@ -2048,4 +1963,283 @@ a {
   color: var(--muted-foreground);
   margin-top: 5px;
   line-height: 1.4;
+}
+
+/* Keep menu controls compact; updates live in the existing bell dialog. */
+.app-root[data-menu="true"] .app-content {
+  position: relative;
+  padding: 6px 18px 0;
+  gap: 6px;
+}
+.menu-controls {
+  display: grid;
+  grid-template-columns: minmax(144px, 1fr) minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+.menu-controls .canteen-switch {
+  gap: 4px;
+}
+.menu-controls .canteen-switch > button {
+  min-height: 44px;
+  padding: 6px;
+  justify-content: center;
+}
+.menu-controls .canteen-switch strong {
+  font-size: 13px;
+}
+.menu-controls .canteen-letter,
+.menu-controls .canteen-switch > button > span:last-child {
+  display: none;
+}
+.menu-controls .menu-search {
+  width: 100%;
+}
+.menu-controls .menu-search input {
+  height: 44px;
+}
+.app-root[data-menu="true"] .app-content[data-has-cart="true"] {
+  padding-bottom: 60px;
+}
+@media (max-width: 760px), (max-height: 500px) {
+  .app-root[data-menu="true"] .app-header {
+    height: calc(52px + env(safe-area-inset-top));
+    min-height: calc(52px + env(safe-area-inset-top));
+  }
+  .app-root[data-menu="true"] .app-nav {
+    padding: 4px 10px calc(4px + env(safe-area-inset-bottom));
+  }
+  .app-root[data-menu="true"] .app-nav a {
+    min-height: 48px;
+    padding: 3px;
+  }
+  .app-root[data-menu="true"] .cart-dock {
+    bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  .app-root[data-menu="true"] .cart-dock > button {
+    height: 44px;
+  }
+}
+
+.app-toast {
+  position: fixed;
+  inset: calc(8px + env(safe-area-inset-top)) 12px auto;
+  width: calc(100% - 24px);
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  background: #2e2229;
+  color: #fffafc;
+  border: 1px solid #59444f;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px #27111d30;
+  font-size: 13px;
+}
+.app-toast:popover-open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-toast span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.app-toast button {
+  min-width: 44px;
+  flex-shrink: 0;
+  font-size: 22px;
+}
+.menu-controls > button {
+  position: relative;
+}
+.app-root[data-menu="true"] .header-context,
+.app-root[data-menu="true"] .connection {
+  display: none;
+}
+.app-content[data-screen="menu"] dialog .menu-category {
+  max-width: none;
+  margin: 0;
+}
+.app-content[data-screen="orders"],
+.app-content[data-screen="pickup"] {
+  gap: 14px;
+}
+.app-content[data-screen="orders"] .eyebrow {
+  display: none;
+}
+.order-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  background: transparent;
+  border: 0;
+}
+.order-list .order-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 16px;
+}
+.order-card-top,
+.order-canteen,
+.order-card-footer,
+.order-card-footer > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.order-card-top {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.order-canteen {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.order-list .order-card-body {
+  flex: none;
+}
+.order-card-body > strong {
+  display: block;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+.order-progress {
+  display: block;
+  height: 4px;
+  margin-top: 14px;
+  border-radius: 4px;
+  background: var(--accent);
+  overflow: hidden;
+}
+.order-progress > span {
+  display: block;
+  height: 100%;
+  background: #39734c;
+}
+.order-card-footer {
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.order-card-footer > span:first-child {
+  color: var(--muted-foreground);
+}
+.order-card-footer > span:last-child {
+  flex-shrink: 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ticket-header h1 {
+  font-size: 30px;
+}
+.ticket-header .eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+.pickup-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.pickup-overview > div {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.pickup-overview dt {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.pickup-overview dd {
+  margin: 3px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.app-content[data-screen="pickup"] {
+  padding-bottom: 18px;
+}
+.app-content[data-screen="pickup"] .arrival-card {
+  align-items: flex-start;
+  padding: 14px;
+  gap: 12px;
+}
+.arrival-card .pickup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 350px;
+}
+.pickup-actions button {
+  width: 100%;
+}
+.pickup-deadlines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.pickup-deadlines strong {
+  margin-left: 4px;
+  font-size: 13px;
+}
+.pickup-actions .primary-action {
+  min-height: 44px;
+}
+.app-content[data-screen="pickup"] .arrival-card h2 {
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+.pickup-portions .counter-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 12px;
+}
+.pickup-portions .portion:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.receipt-lines > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.receipt-lines small {
+  color: var(--muted-foreground);
+  text-transform: capitalize;
+}
+@media (max-width: 760px) {
+  .order-list {
+    grid-template-columns: 1fr;
+  }
+  .ticket-header h1 {
+    font-size: 26px;
+  }
+  .pickup-overview > div {
+    padding: 8px 10px;
+  }
+  .pickup-overview dd {
+    font-size: 20px;
+  }
 }

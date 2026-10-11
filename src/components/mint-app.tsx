@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Search,
+  SlidersHorizontal,
   ArrowRight,
   MapPin,
   Utensils,
@@ -280,7 +281,6 @@ export function MintApp() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(true);
-  const [fresh, setFresh] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [friend, setFriend] = useState("");
   const [codes, setCodes] = useState<
@@ -303,6 +303,8 @@ export function MintApp() {
   const content = useRef<HTMLElement>(null);
   const passDialog = useRef<HTMLDialogElement>(null);
   const updatesDialog = useRef<HTMLDialogElement>(null);
+  const filtersDialog = useRef<HTMLDialogElement>(null);
+  const toast = useRef<HTMLDivElement>(null);
   const [pickupView, setPickupView] = useState("pickup");
   const video = useRef<HTMLVideoElement>(null);
   const scanControls = useRef<{ stop: () => void } | null>(null);
@@ -320,9 +322,16 @@ export function MintApp() {
   const [reportError, setReportError] = useState("");
   const actionRunning = useRef(false);
   useEffect(() => {
+    if (!message) return;
+    toast.current?.showPopover();
+    const timer = setTimeout(() => setMessage(""), 3000);
+    return () => clearTimeout(timer);
+  }, [message]);
+  useEffect(() => {
     content.current?.scrollTo(0, 0);
     scanControls.current?.stop();
     passDialog.current?.close();
+    filtersDialog.current?.close();
     const timer = setTimeout(() => {
       setPickupView("pickup");
       setScanning(false);
@@ -451,7 +460,6 @@ export function MintApp() {
             ? failed.reason.message
             : "Unable to refresh. Last visible values may be stale.",
         );
-      else setFresh(new Date().toLocaleTimeString("en-IN"));
       return current;
     } finally {
       activeRefreshes.current--;
@@ -499,11 +507,20 @@ export function MintApp() {
   useEffect(() => {
     const update = () => {
       setOnline(navigator.onLine);
+      setMessage(
+        navigator.onLine
+          ? "Back online."
+          : "Offline. Data is stale. Actions are disabled.",
+      );
       if (navigator.onLine) void refreshCurrent.current();
     };
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
-    const initial = setTimeout(() => setOnline(navigator.onLine), 0);
+    const initial = setTimeout(() => {
+      setOnline(navigator.onLine);
+      if (!navigator.onLine)
+        setMessage("Offline. Data is stale. Actions are disabled.");
+    }, 0);
     const timer = setInterval(() => setNow(Date.now()), 1000);
     if ("serviceWorker" in navigator)
       void navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -936,7 +953,13 @@ export function MintApp() {
       )}
       {(policy.usage.activeOrders >= policy.limits.activeOrders ||
         policy.cooldownUntil) && (
-        <Button variant="ghost" onClick={() => setTab("orders")}>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            updatesDialog.current?.close();
+            setTab("orders");
+          }}
+        >
           Open Orders <ArrowRight />
         </Button>
       )}
@@ -1011,10 +1034,12 @@ export function MintApp() {
       </select>
     </label>
   );
+  const browsingMenu = student && tab === "menu" && !selectedOrder;
   return (
     <div
       ref={root}
       className={`app-root ${me ? "authenticated" : "signed-out"}`}
+      data-menu={browsingMenu}
     >
       <header className="app-header">
         <Link href="/" className="app-brand" aria-label="MINT home">
@@ -1055,7 +1080,10 @@ export function MintApp() {
               onClick={() => updatesDialog.current?.showModal()}
             >
               <Bell />
-              {me.invitations.length > 0 && <span className="update-dot" />}
+              {(me.invitations.length > 0 ||
+                activeOrders.length > 0 ||
+                message ||
+                !online) && <span className="update-dot" />}
             </Button>
           )}
           {me && (
@@ -1098,19 +1126,6 @@ export function MintApp() {
         data-screen={me ? (selectedOrder ? "pickup" : tab) : "signin"}
         data-has-cart={student && tab === "menu" && cartCount > 0}
       >
-        {!online && (
-          <div className="offline-notice" role="status">
-            Offline. Data is stale. Actions are disabled.
-          </div>
-        )}
-        {message && (
-          <div role="status" aria-live="polite" className="app-notice">
-            <span>{message}</span>
-            <button aria-label="Dismiss message" onClick={() => setMessage("")}>
-              ×
-            </button>
-          </div>
-        )}
         {!authReady ||
         (!catalogue.serverTime && ["menu", "cart", "manager"].includes(tab)) ? (
           <div className="app-loading" role="status">
@@ -1287,112 +1302,99 @@ export function MintApp() {
           <>
             {tab === "menu" && student && (
               <>
-                <div className="menu-heading">
-                  <div>
-                    <p className="eyebrow">
-                      {me.profile?.name
-                        ? `A LITTLE BREAK, ${me.profile.name.split(" ")[0]}`
-                        : "MAKE TIME FOR YOUR BREAK"}
-                    </p>
-                    <h1>What sounds good?</h1>
-                    <p className="screen-subtitle">
-                      Pick your canteen. We’ll take it from here.
-                    </p>
-                  </div>
-                  <span className="day-stamp">
-                    <span>✳</span>Made for
-                    <br />
-                    campus days
-                  </span>
-                </div>
-                <div
-                  className="canteen-switch"
-                  role="group"
-                  aria-label="Canteens"
-                >
-                  {catalogue.canteens.map((site, index) => (
-                    <button
-                      key={site.id}
-                      aria-label={`Choose ${site.name} canteen`}
-                      aria-pressed={canteen === site.id}
-                      onClick={() => switchCanteen(site.id)}
-                      disabled={busy}
-                    >
-                      <span className="canteen-letter">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <strong>{site.name}</strong>
-                      <span>
-                        {canteen === site.id ? (
-                          <Check size={16} />
-                        ) : (
-                          <ArrowRight size={16} />
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {activeOrders.length > 0 && (
-                  <button
-                    className="active-pickup"
-                    onClick={() => openOrder(activeOrders[0].id)}
+                <h1 className="sr-only">What sounds good?</h1>
+                <div className="menu-controls">
+                  <div
+                    className="canteen-switch"
+                    role="group"
+                    aria-label="Canteens"
                   >
-                    <span className="status-dot" />
-                    <span>
-                      <strong>You have a pickup to make</strong>
-                      <small>
-                        {activeOrders[0].canteen_name} ·{" "}
-                        {activeOrders[0].reference}
-                      </small>
-                    </span>
-                    <ArrowRight />
-                  </button>
-                )}
-                <div className="menu-toolbar">
-                  <div>
-                    <h2>
-                      On the menu{" "}
-                      <span className="menu-count">{menus.length}</span>
-                    </h2>
-                    <p className="help-text">
-                      <span
-                        className={`status-dot ${c?.paused ? "paused" : ""}`}
-                      />
-                      {c?.name} ·{" "}
-                      {c?.paused ? "Ordering paused" : "Accepting orders"}
-                      <span className="sr-only">
-                        {" "}
-                        · Updated {fresh || "just now"}
-                      </span>
-                    </p>
+                    {catalogue.canteens.map((site, index) => (
+                      <button
+                        key={site.id}
+                        aria-label={`Choose ${site.name} canteen`}
+                        aria-pressed={canteen === site.id}
+                        onClick={() => switchCanteen(site.id)}
+                        disabled={busy}
+                      >
+                        <span className="canteen-letter">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <strong>
+                          {site.name}
+                          {site.paused && (
+                            <span
+                              className="status-dot paused"
+                              role="img"
+                              aria-label="Ordering paused"
+                            />
+                          )}
+                        </strong>
+                        <span>
+                          {canteen === site.id ? (
+                            <Check size={16} />
+                          ) : (
+                            <ArrowRight size={16} />
+                          )}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                   <div className="menu-search">
                     <Search size={18} />
                     <Input
                       aria-label="Search menu"
-                      placeholder="Find your favourite"
+                      placeholder="Search"
                       value={menuSearch}
                       onChange={(e) => setMenuSearch(e.target.value)}
                     />
                   </div>
-                </div>
-                <div className="menu-filters">
                   <Button
-                    variant={!readyOnly ? "default" : "ghost"}
-                    onClick={() => setReadyOnly(false)}
+                    variant="outline"
+                    size="icon"
+                    aria-label="Filter menu"
+                    aria-haspopup="dialog"
+                    onClick={() => filtersDialog.current?.showModal()}
                   >
-                    All items
+                    <SlidersHorizontal />
+                    {(readyOnly || selectedCategory) && (
+                      <span className="update-dot" />
+                    )}
                   </Button>
-                  <Button
-                    variant={readyOnly ? "default" : "ghost"}
-                    onClick={() => setReadyOnly(true)}
-                  >
-                    <Clock size={15} />
-                    Ready now
-                  </Button>
-                  {categorySelect}
                 </div>
-                {limitNotice}
+                <dialog
+                  ref={filtersDialog}
+                  className="pass-dialog"
+                  aria-labelledby="filters-title"
+                >
+                  <div className="dialog-heading">
+                    <h2 id="filters-title">Filter menu</h2>
+                    <Button
+                      variant="ghost"
+                      onClick={() => filtersDialog.current?.close()}
+                    >
+                      Done
+                    </Button>
+                  </div>
+                  <div className="menu-filters">
+                    <Button
+                      variant={!readyOnly ? "default" : "ghost"}
+                      aria-pressed={!readyOnly}
+                      onClick={() => setReadyOnly(false)}
+                    >
+                      All items
+                    </Button>
+                    <Button
+                      variant={readyOnly ? "default" : "ghost"}
+                      aria-pressed={readyOnly}
+                      onClick={() => setReadyOnly(true)}
+                    >
+                      <Clock size={15} />
+                      Ready now
+                    </Button>
+                  </div>
+                  <label className="field">Category{categorySelect}</label>
+                </dialog>
                 {!catalogue.serverTime ? (
                   <div className="empty-state">Loading the menu…</div>
                 ) : filteredMenu.length === 0 ? (
@@ -1713,25 +1715,59 @@ export function MintApp() {
                   ) : (
                     <>
                       <div className="ticket-header">
-                        <p className="eyebrow">
-                          {
-                            catalogue.canteens.find(
-                              (site) => site.id === detail.order.canteen_id,
-                            )?.name
-                          }{" "}
-                          CANTEEN
-                        </p>
-                        <h1>Your pickup</h1>
-                        <p className="screen-subtitle">
-                          {detail.order.reference} ·{" "}
-                          <strong>
-                            {fulfillmentSummary(
-                              detail.order.state,
-                              detail.units,
-                            )}
-                          </strong>
-                        </p>
+                        <div>
+                          <p className="eyebrow">
+                            {
+                              catalogue.canteens.find(
+                                (site) => site.id === detail.order.canteen_id,
+                              )?.name
+                            }{" "}
+                            canteen · {detail.order.reference}
+                          </p>
+                          <h1>Your pickup</h1>
+                        </div>
+                        <Badge variant="secondary">
+                          {fulfillmentSummary(detail.order.state, detail.units)}
+                        </Badge>
                       </div>
+                      <dl
+                        className="pickup-overview"
+                        aria-label="Portion progress"
+                      >
+                        <div>
+                          <dt>To collect</dt>
+                          <dd>
+                            {
+                              detail.units.filter((u) =>
+                                ["pending", "preparing", "ready"].includes(
+                                  u.state,
+                                ),
+                              ).length
+                            }
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Preparing</dt>
+                          <dd>
+                            {
+                              detail.units.filter(
+                                (u) => u.state === "preparing",
+                              ).length
+                            }
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Collected</dt>
+                          <dd>
+                            {
+                              detail.units.filter(
+                                (u) => u.state === "collected",
+                              ).length
+                            }{" "}
+                            / {detail.units.length}
+                          </dd>
+                        </div>
+                      </dl>
                       {detail.order.state === "pending" && (
                         <section className="paper stack">
                           <h2>Payment pending</h2>
@@ -1760,13 +1796,36 @@ export function MintApp() {
                             )}
                         </section>
                       )}
-                      {detail.order.state === "confirmed" &&
+                      {["expired", "exception"].includes(
+                        detail.order.state,
+                      ) && (
+                        <section className="paper stack">
+                          <h2>
+                            {detail.order.state === "exception"
+                              ? "Payment needs review"
+                              : "Reservation expired"}
+                          </h2>
+                          <p>
+                            {detail.order.state === "exception"
+                              ? "This payment could not be applied safely. Check the receipt for refund progress before paying again."
+                              : "This reservation is no longer active. If money was deducted, check payment status before starting another order."}
+                          </p>
+                          {detail.order.payer && (
+                            <Button
+                              variant="outline"
+                              onClick={() => setPickupView("receipt")}
+                            >
+                              View payment details
+                            </Button>
+                          )}
+                        </section>
+                      )}
+                      {pickupView === "pickup" &&
+                        detail.order.state === "confirmed" &&
                         !isClosed(detail.units) && (
                           <section className="arrival-card">
                             <div>
-                              <p className="eyebrow">
-                                FIRST, LET US KNOW YOU’RE HERE
-                              </p>
+                              <p className="eyebrow">NEXT STEP</p>
                               <h2>
                                 {ownActive.length === 0
                                   ? "Pickup assigned to friends"
@@ -1775,14 +1834,29 @@ export function MintApp() {
                                     : "A quick check-in."}
                               </h2>
                               <p>
-                                Target {time(detail.order.target_at)} · final
-                                arrival {time(detail.order.deadline)}
+                                {ownActive.length === 0
+                                  ? "Your friends use their own passes at the assigned counters."
+                                  : ownActive.every((u) => !!u.arrived_at)
+                                    ? "Show your pass at each counter. Made-to-order items must be ready before handover."
+                                    : "Show your pass at the counter to check in, or use your phone’s location."}
                               </p>
+                              <div className="pickup-deadlines">
+                                <span>
+                                  Target{" "}
+                                  <strong>
+                                    {time(detail.order.target_at)}
+                                  </strong>
+                                </span>
+                                <span>
+                                  Arrive by{" "}
+                                  <strong>{time(detail.order.deadline)}</strong>
+                                </span>
+                              </div>
                               {detail.order.deadline &&
                                 detail.units.some(
                                   (u) =>
                                     !u.arrived_at &&
-                                    !["collected", "cancelled"].includes(
+                                    ["pending", "preparing", "ready"].includes(
                                       u.state,
                                     ),
                                 ) && (
@@ -1799,37 +1873,49 @@ export function MintApp() {
                                   </span>
                                 )}
                             </div>
-                            {detail.units.some(
-                              (u) =>
-                                u.collector_id === me.actor.id &&
-                                !u.arrived_at &&
-                                ["pending", "preparing", "ready"].includes(
-                                  u.state,
-                                ),
-                            ) && (
-                              <div>
+                            <div className="pickup-actions">
+                              {ownActive.length > 0 && (
                                 <Button
                                   className="primary-action"
-                                  disabled={
-                                    disabled ||
-                                    !detail.order.deadline ||
-                                    serverNow >=
-                                      Date.parse(detail.order.deadline)
-                                  }
-                                  onClick={locate}
+                                  disabled={disabled}
+                                  onClick={() => void showPasses()}
                                 >
-                                  <MapPin />
-                                  Check in through my app
+                                  <ScanLine />
+                                  Show my station passes
                                 </Button>
-                                <p className="help-text">
-                                  {catalogue.canteens.find(
-                                    (c) => c.id === detail.order.canteen_id,
-                                  )?.demo
-                                    ? "This canteen uses a demo pickup location. Show your pass at the counter to check in."
-                                    : "Allow precise location, or show your pass at the counter. A staff scan also checks you in."}
-                                </p>
-                              </div>
-                            )}
+                              )}
+                              {detail.units.some(
+                                (u) =>
+                                  u.collector_id === me.actor.id &&
+                                  !u.arrived_at &&
+                                  ["pending", "preparing", "ready"].includes(
+                                    u.state,
+                                  ),
+                              ) && (
+                                <div>
+                                  <Button
+                                    variant="outline"
+                                    disabled={
+                                      disabled ||
+                                      !detail.order.deadline ||
+                                      serverNow >=
+                                        Date.parse(detail.order.deadline)
+                                    }
+                                    onClick={locate}
+                                  >
+                                    <MapPin />
+                                    Check in through my app
+                                  </Button>
+                                  <p className="help-text">
+                                    {catalogue.canteens.find(
+                                      (c) => c.id === detail.order.canteen_id,
+                                    )?.demo
+                                      ? "This canteen uses a demo pickup location. Show your pass at the counter to check in."
+                                      : "Allow precise location, or show your pass at the counter. A staff scan also checks you in."}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </section>
                         )}
                       <div
@@ -1871,7 +1957,7 @@ export function MintApp() {
                         <p className="help-text">
                           {pickupView === "share"
                             ? "Select portions, then invite a verified friend or cancel eligible items."
-                            : "Go directly to each counter. Your token stays active during preparation."}
+                            : "Each item shows its collector, counter token, and collection deadline."}
                         </p>
                         {[
                           ...new Set(detail.units.map((u) => u.station_name)),
@@ -1914,23 +2000,39 @@ export function MintApp() {
                                       {unit.collector_name} · token {unit.token}
                                     </small>
                                     <small>
-                                      {unit.arrived_at
-                                        ? `Checked in ${time(unit.arrived_at)}`
-                                        : "Check-in needed"}
-                                      {unit.collection_deadline
+                                      {unit.state === "collected"
+                                        ? `Collected ${time(unit.collected_at)}`
+                                        : ["cancelled", "expired"].includes(
+                                              unit.state,
+                                            )
+                                          ? "Pickup closed"
+                                          : detail.order.state !== "confirmed"
+                                            ? "Waiting for payment confirmation"
+                                            : unit.arrived_at
+                                              ? `Checked in ${time(unit.arrived_at)}`
+                                              : "Check-in needed"}
+                                      {unit.collection_deadline &&
+                                      [
+                                        "pending",
+                                        "preparing",
+                                        "ready",
+                                      ].includes(unit.state)
                                         ? ` · collect by ${time(unit.collection_deadline)}`
                                         : ""}
                                     </small>
                                   </span>
                                   <Badge variant="secondary">
-                                    {unit.state === "pending"
-                                      ? unit.mode === "ready"
-                                        ? "Ready"
-                                        : "Awaiting prep"
-                                      : unit.state === "cancelled"
-                                        ? "Canceled"
-                                        : unit.state[0].toUpperCase() +
-                                          unit.state.slice(1)}
+                                    {detail.order.state !== "confirmed" &&
+                                    unit.state === "pending"
+                                      ? "Not confirmed"
+                                      : unit.state === "pending"
+                                        ? unit.mode === "ready"
+                                          ? "Ready"
+                                          : "Awaiting prep"
+                                        : unit.state === "cancelled"
+                                          ? "Canceled"
+                                          : unit.state[0].toUpperCase() +
+                                            unit.state.slice(1)}
                                   </Badge>
                                 </label>
                               ))}
@@ -2063,6 +2165,25 @@ export function MintApp() {
                             <ReceiptText size={18} />
                             Your receipt
                           </h2>
+                          <div className="receipt-lines">
+                            {detail.units.map((unit) => (
+                              <div key={unit.id}>
+                                <span>
+                                  {unit.name} × 1
+                                  <small>
+                                    {unit.state === "cancelled"
+                                      ? "Canceled"
+                                      : unit.state}
+                                  </small>
+                                </span>
+                                <strong>
+                                  {unit.price === undefined
+                                    ? "—"
+                                    : money(unit.price)}
+                                </strong>
+                              </div>
+                            ))}
+                          </div>
                           <div className="total-line">
                             <span>
                               {detail.order.state === "confirmed"
@@ -2103,20 +2224,6 @@ export function MintApp() {
                         </div>
                       ))}
 
-                      {pickupView === "pickup" &&
-                        detail.order.state === "confirmed" &&
-                        ownActive.length > 0 && (
-                          <div className="screen-action">
-                            <Button
-                              className="primary-action"
-                              disabled={disabled}
-                              onClick={() => void showPasses()}
-                            >
-                              Show my station passes
-                              <ScanLine />
-                            </Button>
-                          </div>
-                        )}
                       <dialog
                         ref={passDialog}
                         className="pass-dialog"
@@ -2180,9 +2287,9 @@ export function MintApp() {
               ) : (
                 <>
                   <PageHeading
-                    eyebrow="FROM PAYMENT TO THE LAST PORTION"
+                    eyebrow="PICKUPS & HISTORY"
                     title="Your orders"
-                    text="Pickups, shared portions, and little breaks past."
+                    text="Track payment, collection, and pickups shared with you."
                   />
                   {me.invitations
                     .filter((i) => i.state === "pending")
@@ -2256,33 +2363,80 @@ export function MintApp() {
                           key={order.id}
                           onClick={() => openOrder(order.id)}
                         >
-                          <span className="order-icon">
-                            <ReceiptText />
-                          </span>
-                          <span>
-                            <strong>
+                          <span className="order-card-top">
+                            <span className="order-canteen">
+                              <Store size={17} />
                               {order.canteen_name ||
                                 catalogue.canteens.find(
                                   (site) => site.id === order.canteen_id,
                                 )?.name}{" "}
                               canteen
-                            </strong>
-                            <small>
-                              {order.reference} ·{" "}
+                            </span>
+                            <Badge variant="secondary">
                               {fulfillmentSummary(
                                 order.state,
                                 order.fulfillment,
                               )}
-                            </small>
+                            </Badge>
+                          </span>
+                          <span className="order-card-body">
+                            <strong>{order.reference}</strong>
                             <small>
-                              {order.payer ? "Your order" : "Shared pickup"}
-                              {order.deadline &&
-                              !isClosed(order.fulfillment || [])
-                                ? ` · arrival by ${time(order.deadline)}`
-                                : ""}
+                              {order.payer ? "Your order" : "Shared pickup"} ·{" "}
+                              {(order.fulfillment || []).length} portions
+                            </small>
+                            {order.fulfillment?.length ? (
+                              <span className="order-progress">
+                                <span
+                                  style={{
+                                    width: `${(100 * order.fulfillment.filter((u) => u.state === "collected").length) / order.fulfillment.length}%`,
+                                  }}
+                                />
+                              </span>
+                            ) : null}
+                            <small>
+                              {
+                                (order.fulfillment || []).filter(
+                                  (u) => u.state === "collected",
+                                ).length
+                              }{" "}
+                              collected ·{" "}
+                              {
+                                (order.fulfillment || []).filter((u) =>
+                                  ["pending", "preparing", "ready"].includes(
+                                    u.state,
+                                  ),
+                                ).length
+                              }{" "}
+                              remaining
                             </small>
                           </span>
-                          <ChevronRight />
+                          <span className="order-card-footer">
+                            <span>
+                              {order.state === "pending"
+                                ? "Finish payment to confirm your food"
+                                : order.state === "exception"
+                                  ? "Payment needs review"
+                                  : order.state === "confirmed" &&
+                                      order.deadline &&
+                                      (order.fulfillment || []).some(
+                                        (u) =>
+                                          u.state === "pending" &&
+                                          !u.arrived &&
+                                          !u.arrived_at,
+                                      )
+                                    ? serverNow >= Date.parse(order.deadline)
+                                      ? "Arrival deadline passed"
+                                      : `Arrive by ${time(order.deadline)}`
+                                    : "View items and pickup details"}
+                            </span>
+                            <span>
+                              {order.state === "pending"
+                                ? "Open payment"
+                                : "View order"}
+                              <ChevronRight size={16} />
+                            </span>
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -2980,6 +3134,21 @@ export function MintApp() {
           </>
         )}
       </main>
+      {message && (
+        <div
+          ref={toast}
+          popover="manual"
+          className="app-toast"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span>{message}</span>
+          <button aria-label="Dismiss message" onClick={() => setMessage("")}>
+            ×
+          </button>
+        </div>
+      )}
       {me && (
         <dialog
           ref={updatesDialog}
@@ -3000,6 +3169,7 @@ export function MintApp() {
             Live order progress and pickup invitations while MINT is open.
           </p>
           <div className="stack">
+            {browsingMenu && limitNotice}
             {me.invitations.map((invitation) => (
               <button
                 className="paper update-card"
