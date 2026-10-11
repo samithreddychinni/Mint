@@ -240,12 +240,22 @@ async function request<T>(path: string, data?: unknown): Promise<T> {
       "OFFLINE",
       "You are offline. Reconnect before trying again.",
     );
-  const response = await fetch("/api/" + path, {
-    method: data === undefined ? "GET" : "POST",
-    headers: data === undefined ? {} : { "Content-Type": "application/json" },
-    body: data === undefined ? undefined : JSON.stringify(data),
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/" + path, {
+      method: data === undefined ? "GET" : "POST",
+      headers: data === undefined ? {} : { "Content-Type": "application/json" },
+      body: data === undefined ? undefined : JSON.stringify(data),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(
+      "NETWORK_ERROR",
+      data === undefined
+        ? "Could not reach MINT. Check your connection and refresh; displayed data may be stale."
+        : "Connection to MINT was interrupted before it replied. Open Orders before retrying to check whether the action completed.",
+    );
+  }
   const result = await response.json().catch(() => {
     throw new ApiError(
       "SERVICE_UNAVAILABLE",
@@ -319,7 +329,10 @@ export function MintApp() {
   const activeRefreshes = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const refreshVersion = useRef(0);
-  const refreshCurrent = useRef<() => Promise<Me | null>>(async () => null);
+  const backgroundFailures = useRef(0);
+  const refreshCurrent = useRef<(silent?: boolean) => Promise<Me | null>>(
+    async () => null,
+  );
   const [managerSummary, setManagerSummary] = useState<ManagerSummary | null>(
     null,
   );
@@ -360,125 +373,140 @@ export function MintApp() {
     me?.roles.some((r) => r.role === "manager" && r.canteen_id === canteen)
       ? canteen
       : "";
-  const refresh = useCallback(async () => {
-    const version = ++refreshVersion.current;
-    const currentRequest = () => refreshVersion.current === version;
-    activeRefreshes.current++;
-    setRefreshing(true);
-    let current: Me | null = null;
-    const reads: Promise<unknown>[] = [
-      api<Catalogue>("catalogue").then((c) => {
-        if (!currentRequest()) return;
-        c.canteens.sort(
-          (a, b) =>
-            ["Main", "IT", "MBA"].indexOf(a.name) -
-            ["Main", "IT", "MBA"].indexOf(b.name),
-        );
-        setCatalogue(c);
-        setCanteen((v) => v || c.canteens[0]?.id || "");
-        setOffset(Date.parse(c.serverTime) - Date.now());
-      }),
-      api<Me>("me")
-        .then((value) => {
-          current = value;
+  const refresh = useCallback(
+    async (silent = false) => {
+      const version = ++refreshVersion.current;
+      const currentRequest = () => refreshVersion.current === version;
+      activeRefreshes.current++;
+      setRefreshing(true);
+      let current: Me | null = null;
+      const reads: Promise<unknown>[] = [
+        api<Catalogue>("catalogue").then((c) => {
           if (!currentRequest()) return;
-          setMe(value);
-          setAuthReady(true);
-          if (pathname === "/") {
-            const destination =
-              value.actor.kind === "student"
-                ? "menu"
-                : value.roles.some((r) => r.role === "manager")
-                  ? "dashboard"
-                  : value.roles.some((r) => r.role === "serving")
-                    ? "staff"
-                    : "account";
-            router.replace("/" + destination);
-          }
-        })
-        .catch((e) => {
-          if (e instanceof ApiError && e.code === "UNAUTHENTICATED") {
-            if (currentRequest()) {
-              setMe(null);
-              setDetail(null);
-              setManagerSummary(null);
-              setAuthReady(true);
-            }
-          } else {
-            if (currentRequest()) setAuthReady(true);
-            throw e;
-          }
-        }),
-    ];
-    // Order data starts immediately and renders independently of menu/account refreshes.
-    if (selectedOrder)
-      reads.push(
-        api<Detail>("orders/" + selectedOrder).then((value) => {
-          if (currentRequest()) {
-            setDetail(value);
-            setOffset(Date.parse(value.serverTime) - Date.now());
-          }
-        }),
-      );
-    if (station && tab === "staff")
-      reads.push(
-        api<Unit[]>("staff/worklist?station=" + station).then((latest) => {
-          if (!currentRequest()) return;
-          setWork(latest);
-          setResolved((previous) =>
-            previous
-              .map((unit) => {
-                const found = latest.find((entry) => entry.id === unit.id);
-                return found && found.version === unit.version
-                  ? { ...unit, ...found }
-                  : unit;
-              })
-              .filter((unit) => unit.state !== "collected"),
+          c.canteens.sort(
+            (a, b) =>
+              ["Main", "IT", "MBA"].indexOf(a.name) -
+              ["Main", "IT", "MBA"].indexOf(b.name),
           );
+          setCatalogue(c);
+          setCanteen((v) => v || c.canteens[0]?.id || "");
+          setOffset(Date.parse(c.serverTime) - Date.now());
         }),
-      );
-    if (reportCanteen)
-      reads.push(
-        api<ManagerSummary>(
-          `manager/${reportCanteen}/summary?period=${reportPeriod}`,
-        )
+        api<Me>("me")
           .then((value) => {
-            if (currentRequest()) {
-              setManagerSummary(value);
-              setReportError("");
+            current = value;
+            if (!currentRequest()) return;
+            setMe(value);
+            setAuthReady(true);
+            if (pathname === "/") {
+              const destination =
+                value.actor.kind === "student"
+                  ? "menu"
+                  : value.roles.some((r) => r.role === "manager")
+                    ? "dashboard"
+                    : value.roles.some((r) => r.role === "serving")
+                      ? "staff"
+                      : "account";
+              router.replace("/" + destination);
             }
           })
           .catch((e) => {
-            if (currentRequest())
-              setReportError(
-                e instanceof Error ? e.message : "Unable to load sales.",
-              );
+            if (e instanceof ApiError && e.code === "UNAUTHENTICATED") {
+              if (currentRequest()) {
+                setMe(null);
+                setDetail(null);
+                setManagerSummary(null);
+                setAuthReady(true);
+              }
+            } else {
+              if (currentRequest()) setAuthReady(true);
+              throw e;
+            }
           }),
-      );
-    try {
-      const results = await Promise.allSettled(reads);
-      if (!currentRequest()) return null;
-      const failed = results.find((result) => result.status === "rejected");
-      if (failed?.status === "rejected")
-        setMessage(
-          failed.reason instanceof Error
-            ? failed.reason.message
-            : "Unable to refresh. Last visible values may be stale.",
+      ];
+      // Order data starts immediately and renders independently of menu/account refreshes.
+      if (selectedOrder)
+        reads.push(
+          api<Detail>("orders/" + selectedOrder).then((value) => {
+            if (currentRequest()) {
+              setDetail(value);
+              setOffset(Date.parse(value.serverTime) - Date.now());
+            }
+          }),
         );
-      return current;
-    } finally {
-      activeRefreshes.current--;
-      if (!activeRefreshes.current) setRefreshing(false);
-    }
-  }, [
-    selectedOrder,
-    station,
-    tab,
-    pathname,
-    router,
-    reportCanteen,
-    reportPeriod,
-  ]);
+      if (station && tab === "staff")
+        reads.push(
+          api<Unit[]>("staff/worklist?station=" + station).then((latest) => {
+            if (!currentRequest()) return;
+            setWork(latest);
+            setResolved((previous) =>
+              previous
+                .map((unit) => {
+                  const found = latest.find((entry) => entry.id === unit.id);
+                  return found && found.version === unit.version
+                    ? { ...unit, ...found }
+                    : unit;
+                })
+                .filter((unit) => unit.state !== "collected"),
+            );
+          }),
+        );
+      if (reportCanteen)
+        reads.push(
+          api<ManagerSummary>(
+            `manager/${reportCanteen}/summary?period=${reportPeriod}`,
+          )
+            .then((value) => {
+              if (currentRequest()) {
+                setManagerSummary(value);
+                setReportError("");
+              }
+            })
+            .catch((e) => {
+              if (currentRequest())
+                setReportError(
+                  e instanceof Error ? e.message : "Unable to load sales.",
+                );
+            }),
+        );
+      try {
+        const results = await Promise.allSettled(reads);
+        if (!currentRequest()) return null;
+        const failed = results.find((result) => result.status === "rejected");
+        if (failed?.status === "rejected") {
+          if (silent) {
+            backgroundFailures.current++;
+            if (backgroundFailures.current === 3)
+              setMessage(
+                "MINT is having trouble refreshing. Your displayed data may be stale; tap Refresh to try again.",
+              );
+          } else {
+            backgroundFailures.current = 0;
+            setMessage(
+              failed.reason instanceof Error
+                ? failed.reason.message
+                : "Unable to refresh. Last visible values may be stale.",
+            );
+          }
+        } else {
+          backgroundFailures.current = 0;
+        }
+        return current;
+      } finally {
+        activeRefreshes.current--;
+        if (!activeRefreshes.current) setRefreshing(false);
+      }
+    },
+    [
+      selectedOrder,
+      station,
+      tab,
+      pathname,
+      router,
+      reportCanteen,
+      reportPeriod,
+    ],
+  );
   useEffect(() => {
     refreshCurrent.current = refresh;
     const timer = setTimeout(() => void refresh(), 0);
@@ -488,15 +516,15 @@ export function MintApp() {
         document.visibilityState === "visible" &&
         navigator.onLine
       )
-        void refresh();
-    }, 5000);
+        void refresh(true);
+    }, 15000);
     const visible = () => {
       if (
         document.visibilityState === "visible" &&
         navigator.onLine &&
         !activeRefreshes.current
       )
-        void refresh();
+        void refresh(true);
     };
     document.addEventListener("visibilitychange", visible);
     const invalidate = () => {
@@ -517,7 +545,7 @@ export function MintApp() {
           ? "Back online."
           : "Offline. Data is stale. Actions are disabled.",
       );
-      if (navigator.onLine) void refreshCurrent.current();
+      if (navigator.onLine) void refreshCurrent.current(true);
     };
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -580,12 +608,17 @@ export function MintApp() {
   };
   const menus = catalogue.items.filter((i) => i.canteen_id === canteen);
   const c = catalogue.canteens.find((c) => c.id === canteen);
+  const cartCanteenId =
+    catalogue.items.find((item) => cart[item.id])?.canteen_id || canteen;
+  const cartCanteen = catalogue.canteens.find(
+    (site) => site.id === cartCanteenId,
+  );
   const total = Object.entries(cart).reduce(
     (sum, [, line]) => sum + line.price * line.quantity,
     0,
   );
   const balance =
-    me?.credits.find((ac) => ac.canteen_id === canteen)?.available || 0;
+    me?.credits.find((ac) => ac.canteen_id === cartCanteenId)?.available || 0;
   const usedCredit = credit ? Math.min(balance, total) : 0;
   const stationOptions = catalogue.stations.filter((s) =>
     me?.roles.some(
@@ -816,18 +849,9 @@ export function MintApp() {
   );
   const switchCanteen = (id: string) => {
     if (id === canteen) return;
-    if (
-      cartCount &&
-      !window.confirm("Clear your current cart and switch canteens?")
-    )
-      return;
     setCanteen(id);
-    setCart({});
-    setCredit(false);
-    setPriceChanged(false);
     setMenuSearch("");
     setMenuCategory("");
-    checkoutKey.current = "";
   };
   const logout = () =>
     run(async () => {
@@ -915,21 +939,23 @@ export function MintApp() {
     completedDays: 0,
     cooldownUntil: null,
   };
-  const cartLimitReason = (add?: Item) => {
+  const cartLimitReason = (add?: Item, lines = cart) => {
     if (policy.cooldownUntil && Date.parse(policy.cooldownUntil) > now + offset)
       return `A short checkout pause ends at ${time(policy.cooldownUntil)}. Existing pickups are available.`;
     if (policy.usage.activeOrders >= policy.limits.activeOrders)
       return `You have ${policy.usage.activeOrders} active orders. Open Orders to finish a pickup or resume payment.`;
-    const count = cartCount + (add ? 1 : 0);
+    const count =
+      Object.values(lines).reduce((sum, line) => sum + line.quantity, 0) +
+      (add ? 1 : 0);
     if (count > policy.limits.perOrder)
       return `Up to ${policy.limits.perOrder} portions per order. Remove an item to add something else.`;
     if (policy.usage.outstanding + count > policy.limits.outstanding)
       return `Up to ${policy.limits.outstanding} portions across active orders. Collect existing food first.`;
     let meals = 0,
       drinks = 0;
-    for (const item of menus) {
+    for (const item of catalogue.items) {
       const quantity =
-        (cart[item.id]?.quantity || 0) + (add?.id === item.id ? 1 : 0);
+        (lines[item.id]?.quantity || 0) + (add?.id === item.id ? 1 : 0);
       if (!quantity) continue;
       const cap = itemAllowance(item, policy);
       if ((policy.usage.byItem[item.id] || 0) + quantity > cap)
@@ -971,21 +997,31 @@ export function MintApp() {
     </div>
   );
   const changeQuantity = (item: Item, delta: number) => {
+    const replacingCart =
+      delta > 0 && cartCount > 0 && cartCanteenId !== item.canteen_id;
+    if (
+      replacingCart &&
+      !window.confirm(
+        `Clear your ${cartCanteen?.name || "current"} canteen cart and add items from ${catalogue.canteens.find((site) => site.id === item.canteen_id)?.name || "this"} canteen?`,
+      )
+    )
+      return;
     if (delta > 0) {
-      const reason = cartLimitReason(item);
+      const reason = cartLimitReason(item, replacingCart ? {} : cart);
       if (reason) {
         setMessage(reason);
         return;
       }
     }
     setCart((current) => {
-      const next = { ...current };
+      const next = replacingCart ? {} : { ...current };
       const quantity = (next[item.id]?.quantity || 0) + delta;
       if (quantity <= 0) delete next[item.id];
       else
         next[item.id] = { quantity, price: next[item.id]?.price ?? item.price };
       return next;
     });
+    if (replacingCart) setCredit(false);
     checkoutKey.current = "";
   };
   const showPasses = () =>
@@ -1514,7 +1550,7 @@ export function MintApp() {
                 <PageHeading
                   eyebrow="ONE CANTEEN. ONE EASY STOP."
                   title="Review order"
-                  text={`${c?.name || "Your"} canteen · stock is reserved when you place your order.`}
+                  text={`${cartCanteen?.name || "Your"} canteen · stock is reserved when you place your order.`}
                 />
                 {cartCount === 0 ? (
                   <Empty
@@ -1536,7 +1572,7 @@ export function MintApp() {
                         Your bag <span className="menu-count">{cartCount}</span>
                       </h2>
                       {Object.entries(cart).map(([id, line]) => {
-                        const item = menus.find((i) => i.id === id);
+                        const item = catalogue.items.find((i) => i.id === id);
                         return (
                           <div className="cart-line" key={id}>
                             <div>
@@ -1571,7 +1607,7 @@ export function MintApp() {
                                         !!cartLimitReason(item) ||
                                         item.paused ||
                                         item.station_paused ||
-                                        c?.paused ||
+                                        cartCanteen?.paused ||
                                         line.quantity >=
                                           Math.min(20, item.available)
                                       }
@@ -1602,10 +1638,10 @@ export function MintApp() {
                         <Wallet />
                         <p>
                           Eligible cancellations return as{" "}
-                          <strong>{c?.name} canteen credit</strong>, not a bank
-                          refund. Missed arrival deadlines return 90%; a 10%
-                          fine is deducted. Credits expire after 30 days.
-                          Prepared food needs staff review.
+                          <strong>{cartCanteen?.name} canteen credit</strong>,
+                          not a bank refund. Missed arrival deadlines return
+                          90%; a 10% fine is deducted. Credits expire after 30
+                          days. Prepared food needs staff review.
                         </p>
                       </div>
                       <p className="help-text">
@@ -1639,8 +1675,8 @@ export function MintApp() {
                                   {
                                     ...line,
                                     price:
-                                      menus.find((i) => i.id === id)?.price ||
-                                      line.price,
+                                      catalogue.items.find((i) => i.id === id)
+                                        ?.price || line.price,
                                   },
                                 ]),
                               ),
@@ -1665,7 +1701,7 @@ export function MintApp() {
                           disabled={
                             disabled ||
                             priceChanged ||
-                            c?.paused ||
+                            cartCanteen?.paused ||
                             !!cartLimitReason()
                           }
                           onClick={() =>
@@ -1673,7 +1709,7 @@ export function MintApp() {
                               checkoutKey.current ||= crypto.randomUUID();
                               const order = await api<Order>("checkouts", {
                                 policy: CREDIT_POLICY,
-                                canteenId: canteen,
+                                canteenId: cartCanteenId,
                                 lines: Object.entries(cart).map(
                                   ([itemId, line]) => ({ itemId, ...line }),
                                 ),
@@ -3086,6 +3122,20 @@ export function MintApp() {
                     error={reportError}
                     onRetry={() => void refreshCurrent.current()}
                     onStock={() => setTab("manager")}
+                    disabled={busy || !online}
+                    onCollectionReview={(unitId) =>
+                      void run(
+                        () =>
+                          api(`manager/${canteen}`, {
+                            action: "collection-review",
+                            unitId,
+                            minutes: 15,
+                            reason:
+                              "Manager reviewed overdue pickup and extended collection window",
+                          }),
+                        "Collection window extended by 15 minutes. Contact the collector and serving staff; complete handover after the food is given.",
+                      )
+                    }
                   />
                 ) : (
                   <Empty

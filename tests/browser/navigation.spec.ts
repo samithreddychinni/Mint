@@ -7,6 +7,7 @@ const catalogue = {
   ],
   stations: [
     { id: "drinks", name: "Drinks", canteen_id: "main", paused: false },
+    { id: "it-snacks", name: "Snacks", canteen_id: "it", paused: false },
   ],
   items: [
     {
@@ -22,10 +23,23 @@ const catalogue = {
       paused: false,
       station_paused: false,
     },
+    {
+      id: "it-snack",
+      name: "IT snack",
+      price: 2500,
+      available: 8,
+      mode: "ready",
+      station_name: "Snacks",
+      station_id: "it-snacks",
+      canteen_id: "it",
+      note: "",
+      paused: false,
+      station_paused: false,
+    },
   ],
   serverTime: new Date().toISOString(),
 };
-test("app routes preserve the cart, require confirmation for canteen changes and clear private state on logout", async ({
+test("app routes preserve the cart while browsing and only confirm when adding across canteens", async ({
   page,
 }) => {
   let signedIn = true;
@@ -72,11 +86,39 @@ test("app routes preserve the cart, require confirmation for canteen changes and
   await expect(
     page.getByRole("button", { name: /1 item · View cart/ }),
   ).toBeVisible();
-  page.once("dialog", (dialog) => dialog.dismiss());
+  let addFromOtherCanteen = false;
+  let prompts = 0;
+  page.on("dialog", async (dialog) => {
+    prompts++;
+    if (addFromOtherCanteen) await dialog.accept();
+    else await dialog.dismiss();
+  });
   await page.getByRole("button", { name: "Choose IT canteen" }).click();
+  expect(prompts).toBe(0);
   await expect(
-    page.getByRole("button", { name: "Choose Main canteen" }),
+    page.getByRole("button", { name: "Choose IT canteen" }),
   ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /1 item · View cart/ }).click();
+  await expect(
+    page.getByText(
+      "Main canteen · stock is reserved when you place your order.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("Fresh juice", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Back to menu" }).click();
+  await page.getByRole("button", { name: "Add IT snack" }).click();
+  expect(prompts).toBe(1);
+  await expect(
+    page.getByRole("button", { name: /1 item · View cart/ }),
+  ).toBeVisible();
+  addFromOtherCanteen = true;
+  await page.getByRole("button", { name: "Add IT snack" }).click();
+  expect(prompts).toBe(2);
+  await page.getByRole("button", { name: /1 item · View cart/ }).click();
+  await expect(
+    page.getByText("IT canteen · stock is reserved when you place your order."),
+  ).toBeVisible();
+  await expect(page.getByText("IT snack", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Account", exact: true }).click();
   await page.getByRole("button", { name: /Canteen credit/ }).click();
   await expect(page).toHaveURL(/\/credit$/);
@@ -199,4 +241,38 @@ test("sign-in has no marketing section or menu and the manifest includes install
     path: ".local/app-signin-desktop.png",
     fullPage: true,
   });
+});
+
+test("manual refresh explains a failed API connection", async ({ page }) => {
+  let failCatalogue = false;
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/catalogue") {
+      if (failCatalogue) return route.abort();
+      return route.fulfill({ json: catalogue });
+    }
+    if (path === "/api/me")
+      return route.fulfill({
+        json: {
+          actor: {
+            id: "student",
+            email: "student@cb.students.amrita.edu",
+            kind: "student",
+          },
+          roles: [],
+          orders: [],
+          credits: [],
+          ledger: [],
+          invitations: [],
+          serverTime: catalogue.serverTime,
+        },
+      });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/menu");
+  failCatalogue = true;
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Could not reach MINT" }),
+  ).toBeVisible();
 });

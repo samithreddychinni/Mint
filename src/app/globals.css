@@ -1819,6 +1819,23 @@ a {
 .dashboard-attention p {
   font-size: 13px;
 }
+.dashboard-overdue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgb(110 80 35 / 18%);
+}
+.dashboard-overdue-item .help-text {
+  margin-top: 4px;
+}
+@media (max-width: 420px) {
+  .dashboard-overdue-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 .dashboard-lists {
   display: grid;
   gap: 16px;

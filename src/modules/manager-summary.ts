@@ -42,6 +42,12 @@ export async function managerSummary(
     (select count(*)::int from mint.orders o where o.canteen_id=${canteen} and (o.state='exception' or o.reconcile_at is not null or exists(select 1 from mint.audit_events ae where ae.entity=o.id::text and ae.action='payment_mismatch'))) payment_reviews,
     (select count(*)::int from mint.resolutions r join mint.orders o on o.id=r.order_id where o.canteen_id=${canteen} and r.state<>'completed') pending_refunds,
     (select count(*)::int from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and o.state='confirmed' and u.state in ('pending','preparing','ready') and u.collection_deadline<=current_timestamp) overdue_portions,
+    coalesce((select jsonb_agg(to_jsonb(x) order by x.collection_deadline,x.id) from (
+      select u.id,u.name,u.state,o.reference,p.name collector_name,s.name station_name,u.collection_deadline
+      from mint.units u join mint.orders o on o.id=u.order_id join mint.profiles p on p.id=u.collector_id join mint.stations s on s.id=u.station_id
+      where o.canteen_id=${canteen} and o.state='confirmed' and u.state in ('pending','preparing','ready') and u.collection_deadline<=current_timestamp
+      order by u.collection_deadline,u.id limit 20
+    ) x),'[]'::jsonb) overdue_details,
     coalesce((select jsonb_agg(to_jsonb(p)) from popular p),'[]'::jsonb) popular_items,
     coalesce((select jsonb_agg(to_jsonb(i) order by i.available,i.name) from availability i where not i.paused and not i.station_paused and i.available<=5),'[]'::jsonb) low_stock,
     (select count(*)::int from availability where paused or station_paused) paused_items,

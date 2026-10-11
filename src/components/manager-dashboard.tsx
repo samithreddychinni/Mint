@@ -20,6 +20,15 @@ export type ManagerSummary = {
   payment_reviews: number;
   pending_refunds: number;
   overdue_portions: number;
+  overdue_details?: {
+    id: string;
+    name: string;
+    state: string;
+    reference: string;
+    collector_name: string;
+    station_name: string;
+    collection_deadline: string;
+  }[];
   paused_items: number;
   worker_healthy: boolean;
   popular_items: { name: string; portions: number; value: number | string }[];
@@ -39,6 +48,8 @@ export function ManagerDashboard({
   error,
   onRetry,
   onStock,
+  onCollectionReview,
+  disabled,
 }: {
   summary: ManagerSummary | null;
   period: "today" | "week";
@@ -46,6 +57,8 @@ export function ManagerDashboard({
   error: string;
   onRetry: () => void;
   onStock: () => void;
+  onCollectionReview: (unitId: string) => void;
+  disabled: boolean;
 }) {
   return (
     <section className="manager-dashboard" aria-label="Online sales dashboard">
@@ -109,13 +122,42 @@ export function ManagerDashboard({
                 </p>
               )}
               {summary.overdue_portions > 0 && (
-                <p>
-                  {summary.overdue_portions} checked-in{" "}
-                  {summary.overdue_portions === 1
-                    ? "portion is"
-                    : "portions are"}{" "}
-                  past the collection deadline.
-                </p>
+                <div className="stack">
+                  <p>
+                    {summary.overdue_portions} checked-in{" "}
+                    {summary.overdue_portions === 1
+                      ? "portion is"
+                      : "portions are"}{" "}
+                    past the collection deadline. Review each case and contact
+                    the collector or serving staff.
+                  </p>
+                  {summary.overdue_details?.map((portion) => (
+                    <div key={portion.id} className="dashboard-overdue-item">
+                      <div>
+                        <strong>{portion.name}</strong>
+                        <p className="help-text">
+                          Order {portion.reference} · {portion.collector_name} ·{" "}
+                          {portion.station_name} · {portion.state}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={disabled}
+                        onClick={() => onCollectionReview(portion.id)}
+                      >
+                        Extend 15 minutes
+                      </Button>
+                    </div>
+                  ))}
+                  {(summary.overdue_details?.length ?? 0) <
+                    summary.overdue_portions && (
+                    <p className="help-text">
+                      Showing the first {summary.overdue_details?.length ?? 0};
+                      refresh to check for updates.
+                    </p>
+                  )}
+                </div>
               )}
               {!summary.worker_healthy && (
                 <p>

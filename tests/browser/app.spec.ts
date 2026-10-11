@@ -162,7 +162,7 @@ test("manager mobile interface keeps stock updates scoped to assigned canteens",
 }) => {
   await login(page, "main.manager@staff.demo.invalid");
   await expect(
-    page.getByRole("heading", { name: "A good day, in numbers." }),
+    page.getByRole("heading", { name: "Sales overview" }),
   ).toBeVisible();
   const panel = page.getByRole("region", { name: "Online sales dashboard" });
   await expect(
