@@ -1,5 +1,7 @@
 # MINT deployment
 
+For a system overview and links to related guides, start with the [documentation map](README.md). This file covers hosted configuration, release steps, and deployment-specific verification.
+
 ## Hosting
 
 - Vercel hosts the PWA at `https://mint-campus-demo.vercel.app`.

@@ -2,6 +2,8 @@
 
 MINT is an installable campus canteen pickup application. This document describes its implemented architecture, technology stack, database schema, API contracts, security boundaries, algorithms, financial rules, deployment, and maintenance procedures.
 
+Use the [documentation map](README.md) to choose a guide by task. Read the [system architecture](architecture/overview.md) for the component map and [core workflows](architecture/workflows.md) for end-to-end behavior. This file is the detailed reference for exact contracts and invariants.
+
 **Documentation baseline:** 11 October 2026. Versions and policy values reflect the repository at this baseline. Source code and migrations define behavior when this reference and a later revision differ.
 
 For deployment procedures, see [Deployment](DEPLOYMENT.md). For campus menu data and import behavior, see [Campus menu](frontend/CAMPUS_MENU.md). Delivery and other proposal documents describe planned scope rather than shipped features.
