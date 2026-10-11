@@ -608,6 +608,31 @@ test("staff partial handover keeps preparation tokens and permits the next picku
   await page.getByText("Camera not working?", { exact: true }).click();
   await page.getByLabel("Paste QR code", { exact: true }).fill("sample-pass");
   await page.getByRole("button", { name: "Open pickup", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Scan collection QR" }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByText("ASSIGNED COLLECTOR", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Done · 0 items given" }),
+  ).toBeDisabled();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await noOverflow(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBeTruthy();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: ".local/qa/serving-active-390.png" });
+
   await page
     .locator("label")
     .filter({ hasText: "Fresh juice × 1" })
@@ -636,7 +661,13 @@ test("staff partial handover keeps preparation tokens and permits the next picku
   await expect(page.getByLabel("Paste QR code", { exact: true })).toHaveValue(
     "",
   );
+  await expect(
+    page.getByRole("button", { name: "Scan collection QR" }),
+  ).toBeVisible();
   await page.screenshot({ path: ".local/qa/serving-390.png" });
+  await page.getByRole("button", { name: /^Pending items/ }).click();
+  await expect(page.getByText("To prepare", { exact: true })).toBeVisible();
+  await page.screenshot({ path: ".local/qa/serving-queue-390.png" });
 });
 
 test("camera scan reads the QR and displays arrived portions without a second resolve click", async ({
@@ -1054,6 +1085,12 @@ test("manager dashboard is scoped, shows separate money totals, changes period a
   await page.goto("/dashboard");
   const panel = page.getByRole("region", { name: "Online sales dashboard" });
   await expect(panel.getByText("₹1,450.00", { exact: true })).toBeVisible();
+  const attention = await panel
+    .getByRole("region", { name: "Needs attention" })
+    .boundingBox();
+  const sales = await panel.locator(".sales-hero").boundingBox();
+  expect(attention!.y).toBeLessThan(sales!.y);
+
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 390, height: 844 },

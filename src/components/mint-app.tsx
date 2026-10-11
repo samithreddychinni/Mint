@@ -2635,35 +2635,42 @@ export function MintApp() {
             )}
             {tab === "staff" && !student && (
               <>
-                <div className="screen-heading">
-                  <h1>Serving</h1>
-                </div>
-                <div className="field">
-                  <label htmlFor="station">Authorized station</label>
-                  <select
-                    id="station"
-                    value={station}
-                    onChange={(e) => {
-                      stopScan();
-                      setStation(e.target.value);
-                      setResolved([]);
-                      setStaffSelected([]);
-                    }}
-                  >
-                    {stationOptions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {
-                          catalogue.canteens.find((c) => c.id === s.canteen_id)
-                            ?.name
-                        }{" "}
-                        · {s.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="staff-toolbar">
+                  <div className="screen-heading">
+                    <h1>Serving</h1>
+                    <p className="help-text">
+                      Scan a pickup or prepare the next item.
+                    </p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="station">Authorized station</label>
+                    <select
+                      id="station"
+                      value={station}
+                      onChange={(e) => {
+                        stopScan();
+                        setStation(e.target.value);
+                        setResolved([]);
+                        setStaffSelected([]);
+                      }}
+                    >
+                      {stationOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {
+                            catalogue.canteens.find(
+                              (c) => c.id === s.canteen_id,
+                            )?.name
+                          }{" "}
+                          · {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="segmented workspace-tabs">
                   <Button
                     variant={staffView === "scan" ? "default" : "ghost"}
+                    aria-pressed={staffView === "scan"}
                     onClick={() => setStaffView("scan")}
                   >
                     <ScanLine />
@@ -2671,6 +2678,7 @@ export function MintApp() {
                   </Button>
                   <Button
                     variant={staffView === "queue" ? "default" : "ghost"}
+                    aria-pressed={staffView === "queue"}
                     onClick={() => {
                       stopScan();
                       setStaffView("queue");
@@ -2687,107 +2695,116 @@ export function MintApp() {
                     role="region"
                     aria-label="Scanned pickup"
                   >
-                    <h3 className="text-xl font-bold">Scan. Give. Done.</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Scan the student’s pickup QR. They can collect for
-                      themselves or a friend.
-                    </p>
-                    <video
-                      ref={video}
-                      playsInline
-                      muted
-                      className={scanning ? "w-full rounded-lg" : "hidden"}
-                    />
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      disabled={!online || busy}
-                      onClick={() => (scanning ? stopScan() : void scan())}
-                    >
-                      <ScanLine size={18} />
-                      {scanning ? "Stop camera" : "Scan collection QR"}
-                    </Button>
-                    <details>
-                      <summary className="text-sm cursor-pointer">
-                        Camera not working?
-                      </summary>
-                      <div className="field">
-                        <label htmlFor="token">Paste QR code</label>
-                        <Input
-                          id="token"
-                          value={token}
-                          onChange={(e) => setToken(e.target.value)}
-                          autoComplete="off"
-                        />
+                    <div className="scan-entry" hidden={resolved.length > 0}>
+                      <div className="scan-illustration">
+                        <ScanLine aria-hidden="true" />
                       </div>
+                      <h2>Ready for the next pickup</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Scan the student’s pickup QR. They can collect for
+                        themselves or a friend.
+                      </p>
+                      <video
+                        ref={video}
+                        playsInline
+                        muted
+                        className={scanning ? "w-full rounded-lg" : "hidden"}
+                      />
                       <Button
                         className="w-full"
-                        disabled={busy || !online || !token || !station}
-                        onClick={() => void resolveToken(token)}
+                        variant="default"
+                        disabled={!online || busy || !station}
+                        onClick={() => (scanning ? stopScan() : void scan())}
                       >
-                        Open pickup
+                        <ScanLine size={18} />
+                        {scanning ? "Stop camera" : "Scan collection QR"}
                       </Button>
                       <details>
                         <summary className="text-sm cursor-pointer">
-                          No QR? Find an order
+                          Camera not working?
                         </summary>
-                        <div className="space-y-3 mt-3">
-                          <label className="field">
-                            Order reference
-                            <Input
-                              value={reference}
-                              onChange={(e) => setReference(e.target.value)}
-                            />
-                          </label>
-                          <label className="field">
-                            Expected collector email
-                            <Input
-                              type="email"
-                              value={collector}
-                              onChange={(e) => setCollector(e.target.value)}
-                            />
-                          </label>
-                          <Button
-                            variant="outline"
-                            disabled={
-                              busy || !online || !reference || !collector
-                            }
-                            onClick={() =>
-                              void run(async () => {
-                                const r = await api<{
-                                  units: Unit[];
-                                  message: string;
-                                }>("staff/resolve", {
-                                  stationId: station,
-                                  reference,
-                                  collector,
-                                });
-                                setResolved(r.units);
-                                setStaffSelected([]);
-                                setMessage(r.message);
-                              })
-                            }
-                          >
-                            Look up reference
-                          </Button>
+                        <div className="field">
+                          <label htmlFor="token">Paste QR code</label>
+                          <Input
+                            id="token"
+                            value={token}
+                            onChange={(e) => setToken(e.target.value)}
+                            autoComplete="off"
+                          />
                         </div>
+                        <Button
+                          className="w-full"
+                          disabled={busy || !online || !token || !station}
+                          onClick={() => void resolveToken(token)}
+                        >
+                          Open pickup
+                        </Button>
+                        <details>
+                          <summary className="text-sm cursor-pointer">
+                            No QR? Find an order
+                          </summary>
+                          <div className="space-y-3 mt-3">
+                            <label className="field">
+                              Order reference
+                              <Input
+                                value={reference}
+                                onChange={(e) => setReference(e.target.value)}
+                              />
+                            </label>
+                            <label className="field">
+                              Expected collector email
+                              <Input
+                                type="email"
+                                value={collector}
+                                onChange={(e) => setCollector(e.target.value)}
+                              />
+                            </label>
+                            <Button
+                              variant="outline"
+                              disabled={
+                                busy || !online || !reference || !collector
+                              }
+                              onClick={() =>
+                                void run(async () => {
+                                  const r = await api<{
+                                    units: Unit[];
+                                    message: string;
+                                  }>("staff/resolve", {
+                                    stationId: station,
+                                    reference,
+                                    collector,
+                                  });
+                                  setResolved(r.units);
+                                  setStaffSelected([]);
+                                  setMessage(r.message);
+                                })
+                              }
+                            >
+                              Look up reference
+                            </Button>
+                          </div>
+                        </details>
                       </details>
-                    </details>
+                    </div>
                     {resolved.length > 0 && (
                       <>
-                        <div className="divider" />
-                        <p className="text-sm font-bold">
-                          {resolved[0].collector_name}
-                        </p>
+                        <div className="collector-heading">
+                          <div>
+                            <p className="eyebrow">ASSIGNED COLLECTOR</p>
+                            <h2>{resolved[0].collector_name}</h2>
+                            <p className="help-text">{resolved[0].reference}</p>
+                          </div>
+                          <Badge variant="outline">
+                            {resolved.length}{" "}
+                            {resolved.length === 1 ? "item" : "items"}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground">
-                          This is the assigned pickup person, who may be a
-                          friend of the payer. Select only the items you give.
+                          Verify the collector’s identity. Select only the items
+                          you give.
                         </p>
                         {resolved.map((u) => (
-                          <label
-                            key={u.id}
-                            className="flex gap-3 items-start border p-3 rounded-lg"
-                          >
+                          <label key={u.id} className="handover-item">
                             <input
                               type="checkbox"
                               checked={staffSelected.includes(u.id)}
@@ -2809,14 +2826,20 @@ export function MintApp() {
                             />
                             <span className="text-sm">
                               <strong>{u.name} × 1</strong>
-                              <span className="block text-xs mt-1">
+                              <span className="handover-status">
                                 {!u.arrived_at
                                   ? "Scan their pickup QR to check in"
-                                  : u.mode === "ready" || u.state === "ready"
-                                    ? "Ready to give"
-                                    : u.state === "preparing"
-                                      ? "Preparing"
-                                      : "Needs preparation"}
+                                  : u.state === "collected"
+                                    ? "Already collected"
+                                    : u.state === "cancelled" ||
+                                        u.state === "expired"
+                                      ? "Closed"
+                                      : u.mode === "ready" ||
+                                          u.state === "ready"
+                                        ? "Ready to give"
+                                        : u.state === "preparing"
+                                          ? "Preparing"
+                                          : "Needs preparation"}
                                 {u.mode === "made" &&
                                   u.state !== "collected" && (
                                     <span className="block">
@@ -2859,7 +2882,7 @@ export function MintApp() {
                           </label>
                         ))}
                         <Button
-                          className="w-full"
+                          className="w-full handover-confirm"
                           disabled={!staffSelected.length || busy || !online}
                           onClick={() =>
                             void run(async () => {
@@ -2905,10 +2928,16 @@ export function MintApp() {
                     hidden={staffView !== "queue"}
                   >
                     <div>
-                      <h3 className="text-xl font-bold">Pending preparation</h3>
+                      <div className="queue-heading">
+                        <h2>Preparation queue</h2>
+                        <Badge variant="outline">
+                          {queued.length}{" "}
+                          {queued.length === 1 ? "item" : "items"}
+                        </Badge>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Keep these items here while you serve the next student.
-                        Ready items need a pickup QR before handover.
+                        Start preparation, mark food ready, then scan the pickup
+                        QR to hand it over.
                       </p>
                     </div>
                     {!queued.length && (
@@ -2917,17 +2946,21 @@ export function MintApp() {
                       </p>
                     )}
                     {queued.map((u) => (
-                      <div
-                        key={u.id}
-                        className="border rounded-lg p-3 space-y-2"
-                      >
+                      <div key={u.id} className="preparation-item">
                         <div className="flex justify-between gap-2">
                           <strong>{u.name} × 1</strong>
-                          <Badge variant="outline">{u.token}</Badge>
+                          <Badge variant="outline">Token {u.token}</Badge>
                         </div>
-                        <p className="text-xs">
+                        <p className="help-text">
                           {u.collector_name} · arrived {time(u.arrived_at)}
                         </p>
+                        <span className={`preparation-state state-${u.state}`}>
+                          {u.state === "pending"
+                            ? "To prepare"
+                            : u.state === "preparing"
+                              ? "Preparing"
+                              : "Ready for pickup"}
+                        </span>
                         {u.overdue ? (
                           <p className="text-xs error">
                             Collection overdue — manager review. No automatic
@@ -2970,12 +3003,14 @@ export function MintApp() {
             )}
             {tab === "dashboard" && !student && (
               <>
-                <PageHeading
-                  eyebrow="YOUR CANTEEN, AT A GLANCE"
-                  title="A good day, in numbers."
-                  text="Online orders, from payment to pickup."
-                />
-                {canteenSelect("manager")}
+                <div className="manager-toolbar">
+                  <PageHeading
+                    eyebrow="CANTEEN OPERATIONS"
+                    title="Sales overview"
+                    text="Online orders, from payment to pickup."
+                  />
+                  {canteenSelect("manager")}
+                </div>
                 {canManage ? (
                   <ManagerDashboard
                     summary={
@@ -3004,14 +3039,67 @@ export function MintApp() {
             )}
             {tab === "manager" && !student && (
               <>
-                <PageHeading
-                  eyebrow="ONLINE ORDER AVAILABILITY"
-                  title="Available stock"
-                  text="Set how many portions are available for new online orders."
-                />
-                {canteenSelect("manager")}
+                <div className="manager-toolbar">
+                  <PageHeading
+                    eyebrow="ONLINE ORDER AVAILABILITY"
+                    title="Available stock"
+                    text="Set how many portions are available for new online orders."
+                  />
+                  {canteenSelect("manager")}
+                </div>
                 {canManage ? (
                   <section className="stack">
+                    <p className="help-text">
+                      Existing reservations stay protected. Enter the portions
+                      available for new online orders.
+                    </p>
+                    {menus.length === 0 && (
+                      <Empty
+                        icon={<Utensils />}
+                        title="No menu items yet"
+                        text="Your configured menu will appear here."
+                      />
+                    )}
+                    <div className="stock-filters">
+                      <Input
+                        aria-label="Search stock"
+                        placeholder="Find an item"
+                        value={menuSearch}
+                        onChange={(e) => setMenuSearch(e.target.value)}
+                      />
+                      {categorySelect}
+                    </div>
+                    {menus.length > 0 && searchedMenu.length === 0 && (
+                      <p role="status">No matching items.</p>
+                    )}
+                    <div className="stock-grid">
+                      {searchedMenu.map((item) => (
+                        <StockEditor
+                          key={`${canteen}:${item.id}`}
+                          item={item}
+                          disabled={disabled}
+                          run={run}
+                          saveSettings={(input) =>
+                            api(`manager/${canteen}`, {
+                              action: "item-settings",
+                              itemId: item.id,
+                              ...input,
+                              reason: "Manager edited menu item settings",
+                            })
+                          }
+                          save={(quantity, expectedAvailable) =>
+                            api(`manager/${canteen}`, {
+                              action: "stock",
+                              itemId: item.id,
+                              quantity,
+                              expectedAvailable,
+                              reason:
+                                "Manager updated availability for online orders",
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
                     <details className="paper limits-review">
                       <summary>Review a student’s ordering restriction</summary>
                       <form
@@ -3060,55 +3148,6 @@ export function MintApp() {
                         </p>
                       </form>
                     </details>
-                    <p className="help-text">
-                      Existing reservations stay protected. Enter the portions
-                      available for new online orders.
-                    </p>
-                    {menus.length === 0 && (
-                      <Empty
-                        icon={<Utensils />}
-                        title="No menu items yet"
-                        text="Your configured menu will appear here."
-                      />
-                    )}
-                    <div className="stock-filters">
-                      <Input
-                        aria-label="Search stock"
-                        placeholder="Find an item"
-                        value={menuSearch}
-                        onChange={(e) => setMenuSearch(e.target.value)}
-                      />
-                      {categorySelect}
-                    </div>
-                    {menus.length > 0 && searchedMenu.length === 0 && (
-                      <p role="status">No matching items.</p>
-                    )}
-                    {searchedMenu.map((item) => (
-                      <StockEditor
-                        key={`${canteen}:${item.id}`}
-                        item={item}
-                        disabled={disabled}
-                        run={run}
-                        saveSettings={(input) =>
-                          api(`manager/${canteen}`, {
-                            action: "item-settings",
-                            itemId: item.id,
-                            ...input,
-                            reason: "Manager edited menu item settings",
-                          })
-                        }
-                        save={(quantity, expectedAvailable) =>
-                          api(`manager/${canteen}`, {
-                            action: "stock",
-                            itemId: item.id,
-                            quantity,
-                            expectedAvailable,
-                            reason:
-                              "Manager updated availability for online orders",
-                          })
-                        }
-                      />
-                    ))}
                   </section>
                 ) : (
                   <Empty
@@ -3274,7 +3313,11 @@ function StockEditor({
           <p className="help-text">
             {item.category ? `${item.category} · ` : ""}
             {item.station_name} · {money(item.price)} ·{" "}
-            {item.paused ? "Unavailable" : "On the menu"}
+            {item.paused
+              ? "Paused"
+              : item.available === 0
+                ? "Sold out"
+                : `${item.available} available`}
           </p>
         </div>
         <Button

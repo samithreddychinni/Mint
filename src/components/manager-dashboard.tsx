@@ -1,5 +1,5 @@
 "use client";
-import { ArrowUpRight, PackageCheck, RefreshCw, Sprout } from "lucide-react";
+import { ArrowUpRight, PackageCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type ManagerSummary = {
@@ -84,6 +84,46 @@ export function ManagerDashboard({
         </div>
       ) : (
         <>
+          {(summary.payment_reviews > 0 ||
+            summary.pending_refunds > 0 ||
+            summary.overdue_portions > 0 ||
+            !summary.worker_healthy) && (
+            <section
+              className="dashboard-attention"
+              aria-label="Needs attention"
+            >
+              <h2>Needs attention</h2>
+              {summary.payment_reviews > 0 && (
+                <p>
+                  {summary.payment_reviews} payment{" "}
+                  {summary.payment_reviews === 1 ? "case needs" : "cases need"}{" "}
+                  review.
+                </p>
+              )}
+              {summary.pending_refunds > 0 && (
+                <p>
+                  {summary.pending_refunds} bank{" "}
+                  {summary.pending_refunds === 1 ? "refund is" : "refunds are"}{" "}
+                  still processing.
+                </p>
+              )}
+              {summary.overdue_portions > 0 && (
+                <p>
+                  {summary.overdue_portions} checked-in{" "}
+                  {summary.overdue_portions === 1
+                    ? "portion is"
+                    : "portions are"}{" "}
+                  past the collection deadline.
+                </p>
+              )}
+              {!summary.worker_healthy && (
+                <p>
+                  Automatic order checks need attention. Ask the system
+                  administrator to check the worker.
+                </p>
+              )}
+            </section>
+          )}
           <div className="sales-hero">
             <div>
               <p className="eyebrow">PAID ORDER VALUE</p>
@@ -96,10 +136,6 @@ export function ManagerDashboard({
                 {period === "today" ? "today" : "last 7 days"}
               </p>
             </div>
-            <Sprout className="sales-sprout" aria-hidden="true" />
-            <span className="sales-caption">
-              A little less waiting. A little more lunch.
-            </span>
           </div>
           <div className="sales-grid">
             {[
@@ -141,7 +177,7 @@ export function ManagerDashboard({
             aria-labelledby="pickup-pulse-title"
           >
             <div className="dashboard-section-heading">
-              <h2 id="pickup-pulse-title">From kitchen to campus</h2>
+              <h2 id="pickup-pulse-title">Pickup activity</h2>
               <PackageCheck size={20} aria-hidden="true" />
             </div>
             <div className="pickup-counts">
@@ -161,46 +197,6 @@ export function ManagerDashboard({
               </div>
             </div>
           </section>
-          {(summary.payment_reviews > 0 ||
-            summary.pending_refunds > 0 ||
-            summary.overdue_portions > 0 ||
-            !summary.worker_healthy) && (
-            <section
-              className="dashboard-attention"
-              aria-label="Needs attention"
-            >
-              <h2>Needs attention</h2>
-              {summary.payment_reviews > 0 && (
-                <p>
-                  {summary.payment_reviews} payment{" "}
-                  {summary.payment_reviews === 1 ? "case needs" : "cases need"}{" "}
-                  review.
-                </p>
-              )}
-              {summary.pending_refunds > 0 && (
-                <p>
-                  {summary.pending_refunds} bank{" "}
-                  {summary.pending_refunds === 1 ? "refund is" : "refunds are"}{" "}
-                  still processing.
-                </p>
-              )}
-              {summary.overdue_portions > 0 && (
-                <p>
-                  {summary.overdue_portions} checked-in{" "}
-                  {summary.overdue_portions === 1
-                    ? "portion is"
-                    : "portions are"}{" "}
-                  past the collection deadline.
-                </p>
-              )}
-              {!summary.worker_healthy && (
-                <p>
-                  Automatic order checks need attention. Ask the system
-                  administrator to check the worker.
-                </p>
-              )}
-            </section>
-          )}
           <div className="dashboard-lists">
             <section className="paper" aria-labelledby="popular-title">
               <h2 id="popular-title">Campus favourites</h2>
@@ -221,7 +217,7 @@ export function ManagerDashboard({
                 </ol>
               ) : (
                 <p className="dashboard-empty">
-                  The first order will start the story.
+                  No paid orders in this period.
                 </p>
               )}
             </section>
@@ -250,9 +246,7 @@ export function ManagerDashboard({
                   ))}
                 </ul>
               ) : (
-                <p className="dashboard-empty">
-                  Every open item has room for another round.
-                </p>
+                <p className="dashboard-empty">No items running low.</p>
               )}
               {summary.paused_items > 0 && (
                 <p className="help-text">
