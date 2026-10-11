@@ -1361,7 +1361,7 @@ export function MintApp() {
           <>
             {tab === "menu" && student && (
               <>
-                <h1 className="sr-only">What sounds good?</h1>
+                <h1 className="sr-only menu-welcome">What sounds good?</h1>
                 <div className="menu-controls">
                   <div
                     className="canteen-switch"
