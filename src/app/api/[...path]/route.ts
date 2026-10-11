@@ -34,6 +34,8 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
+// Temporary demo allowance; the normal OTP limits resume automatically at this time.
+const demoOtpLimitsUntil = Date.parse("2026-10-11T13:00:00.000Z");
 const uuid = z.uuid();
 const key = z.string().min(8).max(100);
 const ids = z
@@ -221,19 +223,22 @@ async function dispatch(request: NextRequest, segments: string[]) {
           "Use your @cb.students.amrita.edu address.",
           400,
         );
+        const demoOtpLimits = Date.now() < demoOtpLimitsUntil;
+        const perMinuteLimit = demoOtpLimits ? 10 : 1;
+        const hourlyLimit = demoOtpLimits ? 60 : 5;
         await rate(
           "otp-request:" + hash(auth.email),
-          1,
+          perMinuteLimit,
           60,
           (wait) =>
             `Please wait ${wait} seconds before requesting another sign-in code.`,
         );
         await rate(
           "otp-hour:" + hash(auth.email),
-          5,
+          hourlyLimit,
           3600,
           (wait) =>
-            `You have reached the limit of five sign-in codes per hour. Try again in about ${Math.ceil(wait / 60)} minutes.`,
+            `You have reached the limit of ${hourlyLimit} sign-in codes per hour. Try again in about ${Math.ceil(wait / 60)} minutes.`,
         );
         const { error } = await client.auth.signInWithOtp({
           email: auth.email,
