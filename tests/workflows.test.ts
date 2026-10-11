@@ -29,6 +29,7 @@ import { signature } from "../src/lib/razorpay";
 import { createHmac } from "node:crypto";
 import { tick } from "../src/jobs/tick";
 import { updateProfile, profileSchema } from "../src/modules/profiles";
+import { account, move } from "../src/modules/credits";
 const fixtures: string[] = [];
 const profiles: string[] = [];
 async function fixture(stock = 20, balance = 100000) {
@@ -74,9 +75,21 @@ async function fixture(stock = 20, balance = 100000) {
   await db.execute(
     sql`insert into mint.batches(id,item_id,total) values(${batch},${item},${stock}),(${randomUUID()},${made},20)`,
   );
-  await db.execute(
-    sql`insert into mint.credit_accounts(user_id,canteen_id,available) values(${payer.id},${c},${balance})`,
-  );
+  await atomic(c, async (tx) => {
+    if (balance > 0)
+      await move(
+        tx,
+        null,
+        payer.id,
+        c,
+        balance,
+        0,
+        "fixture-credit:" + c,
+        "Test fixture credit",
+        null,
+      );
+    else await account(tx, payer.id, c);
+  });
   return { c, s, d, payer, friend, staff, manager, item, made, batch, actor };
 }
 const cart = (
@@ -1105,9 +1118,15 @@ test("manager unavailable food is withdrawn rather than reintroduced as sellable
 });
 after(async () => {
   for (const c of fixtures) {
-    await db.transaction(async (tx) => {
+    await atomic(c, async (tx) => {
       await tx.execute(
-        sql`delete from mint.audit_events where entity=${c} or entity in(select id::text from mint.orders where canteen_id=${c}) or actor_id in(select user_id from mint.roles where canteen_id=${c})`,
+        sql`delete from mint.audit_events where entity=${c} or entity in(select id::text from mint.orders where canteen_id=${c}) or entity in(select u.id::text from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${c}) or actor_id in(select user_id from mint.roles where canteen_id=${c})`,
+      );
+      await tx.execute(
+        sql`delete from mint.credit_reservations where order_id in(select id from mint.orders where canteen_id=${c})`,
+      );
+      await tx.execute(
+        sql`delete from mint.credit_lots where account_id in(select id from mint.credit_accounts where canteen_id=${c})`,
       );
       await tx.execute(
         sql`delete from mint.credit_ledger where account_id in(select id from mint.credit_accounts where canteen_id=${c})`,
@@ -1237,7 +1256,7 @@ test("fast order reads still expire overdue portions once and hide payer-only re
     sql`select count(*)::int n,sum(amount)::int value from mint.credit_ledger where order_id=${order.id} and source like 'cancel:%'`,
   );
   assert.equal(credits.n, 2);
-  assert.equal(credits.value, 1000);
+  assert.equal(credits.value, 900);
   const pending = await hold(f.payer, cart(f));
   await db.execute(
     sql`update mint.orders set hold_until=current_timestamp-interval '1 second' where id=${pending.id}`,
@@ -1286,8 +1305,18 @@ test("campus-wide quotas serialize different-canteen checkout and preserve retri
     second = await fixture(30),
     third = await fixture(30);
   for (const f of [second, third])
-    await db.execute(
-      sql`insert into mint.credit_accounts(user_id,canteen_id,available) values(${first.payer.id},${f.c},100000)`,
+    await atomic(f.c, (tx) =>
+      move(
+        tx,
+        null,
+        first.payer.id,
+        f.c,
+        100000,
+        0,
+        "cross-canteen-fixture:" + f.c,
+        "Test fixture credit",
+        null,
+      ),
     );
   const carts = [first, second, third].map((f) => cart(f));
   const results = await Promise.allSettled(
@@ -1550,4 +1579,269 @@ test("late captured payment cannot bypass campus-wide capacity and creates one f
     ).committed,
     0,
   );
+});
+
+test("missed arrivals return 90% once, preserve collected portions and report the fine", async () => {
+  const f = await fixture();
+  const o = await confirmed(f, 2);
+  const [collected, missed] = await portions(o.id);
+  await db.execute(
+    sql`update mint.units set state='collected',arrived_at=clock_timestamp(),collected_at=clock_timestamp() where id=${collected.id}`,
+  );
+  await db.execute(
+    sql`update mint.orders set deadline=clock_timestamp()-interval '1 second' where id=${o.id}`,
+  );
+  await Promise.all(
+    Array.from({ length: 3 }, () => atomic(f.c, (tx) => expireTx(tx, f.c))),
+  );
+  const u = (await portions(o.id)).find((u) => u.id === missed.id)!;
+  assert.equal(u.credit_returned, 450);
+  assert.equal(u.missed_pickup_fine, 50);
+  const ac = await one(
+    db,
+    sql`select available from mint.credit_accounts where user_id=${f.payer.id} and canteen_id=${f.c}`,
+  );
+  assert.equal(ac.available, 99450);
+  const detail = await orderView(f.payer, String(o.id));
+  assert.equal(
+    detail.units.find((u) => u.id === missed.id)!.missed_pickup_fine,
+    50,
+  );
+  const { managerSummary } = await import("../src/modules/manager-summary");
+  assert.equal(
+    Number((await managerSummary(f.manager, f.c, "today")).missed_pickup_fines),
+    50,
+  );
+  const lot = await one(
+    db,
+    sql`select available,expires_at>clock_timestamp()+interval '29 days' valid from mint.credit_lots where source=${"cancel:" + missed.id}`,
+  );
+  assert.equal(lot.available, 450);
+  assert.equal(lot.valid, true);
+});
+
+test("credit spends earliest expiry first and worker/read retries expire it exactly once", async () => {
+  const f = await fixture(20, 0);
+  await atomic(f.c, async (tx) => {
+    await move(
+      tx,
+      null,
+      f.payer.id,
+      f.c,
+      1000,
+      0,
+      "old:" + f.c,
+      "First grant",
+      null,
+    );
+    await move(
+      tx,
+      null,
+      f.payer.id,
+      f.c,
+      700,
+      0,
+      "new:" + f.c,
+      "Second grant",
+      null,
+    );
+    await tx.execute(
+      sql`update mint.credit_lots set expires_at=clock_timestamp()+interval '1 hour' where source=${"old:" + f.c}`,
+    );
+  });
+  await confirmed(f);
+  const old = await one(
+    db,
+    sql`select * from mint.credit_lots where source=${"old:" + f.c}`,
+  );
+  assert.equal(old.available, 500);
+  assert.equal(old.reserved, 0);
+  await db.execute(
+    sql`update mint.credit_lots set expires_at=clock_timestamp() where id=${old.id}`,
+  );
+  await assert.rejects(
+    hold(f.payer, cart(f, 2)),
+    safeError("CREDIT_UNAVAILABLE"),
+  );
+  const views = await Promise.all([
+    dashboard(f.payer),
+    dashboard(f.payer),
+    atomic(f.c, (tx) => expireTx(tx, f.c)),
+  ]);
+  assert.equal(views[0].credits[0].available, 700);
+  assert.deepEqual(
+    (views[0].credits[0].lots as { available: number }[]).map(
+      (l) => l.available,
+    ),
+    [700],
+  );
+  const ledger = await one(
+    db,
+    sql`select count(*)::int n,sum(amount)::int amount from mint.credit_ledger where source like ${"credit-expiry:" + old.id + ":%"}`,
+  );
+  assert.equal(ledger.n, 1);
+  assert.equal(ledger.amount, -500);
+  const friend = await dashboard(f.friend);
+  assert.equal(friend.credits.length, 0);
+});
+
+test("a released checkout hold retains expiry and cannot renew an expired grant", async () => {
+  const f = await fixture(20, 3000);
+  const o = await hold(f.payer, cart(f));
+  await db.execute(
+    sql`update mint.credit_lots set expires_at=clock_timestamp() where source=${"fixture-credit:" + f.c}`,
+  );
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  const held = await one(
+    db,
+    sql`select available,reserved from mint.credit_accounts where user_id=${f.payer.id} and canteen_id=${f.c}`,
+  );
+  assert.equal(held.available, 0);
+  assert.equal(held.reserved, 500);
+  await db.execute(
+    sql`update mint.orders set hold_until=clock_timestamp()-interval '1 second' where id=${o.id}`,
+  );
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  const ac = await one(
+    db,
+    sql`select available,reserved from mint.credit_accounts where user_id=${f.payer.id} and canteen_id=${f.c}`,
+  );
+  assert.equal(ac.available, 0);
+  assert.equal(ac.reserved, 0);
+  const lot = await one(
+    db,
+    sql`select * from mint.credit_lots where source=${"fixture-credit:" + f.c}`,
+  );
+  assert.equal(lot.expired, 3000);
+  const expiry = await one(
+    db,
+    sql`select sum(amount)::int amount from mint.credit_ledger where source like ${"credit-expiry:" + lot.id + ":%"}`,
+  );
+  assert.equal(expiry.amount, -3000);
+});
+
+test("credit reserved before expiry can finish checkout, and ordinary cancellation returns full value", async () => {
+  const f = await fixture(20, 500);
+  const o = await hold(f.payer, cart(f));
+  await db.execute(
+    sql`update mint.credit_lots set expires_at=clock_timestamp() where source=${"fixture-credit:" + f.c}`,
+  );
+  await creditOnly(f.payer, String(o.id));
+  const u = (await portions(o.id))[0];
+  await cancel(f.payer, String(o.id), [String(u.id)]);
+  const cancelled = (await portions(o.id))[0];
+  assert.equal(cancelled.credit_returned, 500);
+  assert.equal(cancelled.missed_pickup_fine, 0);
+  const ac = (await dashboard(f.payer)).credits[0];
+  assert.equal(ac.available, 500);
+  assert.equal((ac.lots as unknown[]).length, 1);
+});
+
+test("orders placed under the original policy retain full credit on missed arrival", async () => {
+  const f = await fixture();
+  const o = await confirmed(f);
+  await db.execute(
+    sql`update mint.orders set policy='demo-credit-v1-25+5',deadline=clock_timestamp()-interval '1 second' where id=${o.id}`,
+  );
+  await atomic(f.c, (tx) => expireTx(tx, f.c));
+  const u = (await portions(o.id))[0];
+  assert.equal(u.credit_returned, 500);
+  assert.equal(u.missed_pickup_fine, 0);
+});
+
+test("rolling-release ledger entries allocate reservations and issue credit exactly once", async () => {
+  const f = await fixture(20, 1000);
+  const o = await hold(f.payer, cart(f, 1, 0));
+  await atomic(f.c, async (tx) => {
+    const ac = await account(tx, f.payer.id, f.c);
+    await tx.execute(
+      sql`update mint.orders set credit=500,external=0 where id=${o.id}`,
+    );
+    await tx.execute(
+      sql`update mint.units set credit=500,external=0 where order_id=${o.id}`,
+    );
+    await tx.execute(
+      sql`insert into mint.credit_ledger(account_id,amount,reserved_delta,source,reason,order_id) values(${ac.id},-500,500,${"old-reserve:" + o.id},'Previous backend reservation',${o.id})`,
+    );
+    await tx.execute(
+      sql`update mint.credit_accounts set available=available-500,reserved=reserved+500 where id=${ac.id}`,
+    );
+  });
+  await creditOnly(f.payer, String(o.id));
+  const ac = await one(
+    db,
+    sql`select * from mint.credit_accounts where user_id=${f.payer.id} and canteen_id=${f.c}`,
+  );
+  await atomic(f.c, async (tx) => {
+    await tx.execute(
+      sql`insert into mint.credit_ledger(account_id,amount,source,reason) values(${ac.id},300,${"old-grant:" + f.c},'Previous backend credit')`,
+    );
+    await tx.execute(
+      sql`update mint.credit_accounts set available=available+300 where id=${ac.id}`,
+    );
+  });
+  await dashboard(f.payer);
+  await dashboard(f.payer);
+  const lots = await one(
+    db,
+    sql`select sum(available)::int available,sum(reserved)::int reserved from mint.credit_lots where account_id=${ac.id}`,
+  );
+  assert.equal(lots.available, 800);
+  assert.equal(lots.reserved, 0);
+  const replay = await one(
+    db,
+    sql`select count(*)::int n from mint.credit_lots where source=${"old-grant:" + f.c}`,
+  );
+  assert.equal(replay.n, 1);
+  const unit = (await portions(o.id))[0];
+  await atomic(f.c, async (tx) => {
+    await tx.execute(
+      sql`insert into mint.credit_ledger(account_id,amount,source,reason,order_id) values(${ac.id},500,${"cancel:" + unit.id},'Previous backend cancellation',${o.id})`,
+    );
+    await tx.execute(
+      sql`update mint.credit_accounts set available=available+500 where id=${ac.id}`,
+    );
+    await tx.execute(
+      sql`update mint.units set state='cancelled' where id=${unit.id}`,
+    );
+  });
+  await dashboard(f.payer);
+  assert.equal((await portions(o.id))[0].credit_returned, 500);
+});
+
+test("late captured payment cannot spend expired credit and retains one external refund resolution", async () => {
+  const f = await fixture(20, 500);
+  const o = await hold(f.payer, cart(f, 1, 200));
+  const providerOrder = "order_fixture" + randomUUID().replaceAll("-", "");
+  await db.execute(
+    sql`update mint.orders set provider_order=${providerOrder},hold_until=clock_timestamp()-interval '1 second' where id=${o.id}`,
+  );
+  await db.execute(
+    sql`update mint.credit_lots set expires_at=clock_timestamp() where source=${"fixture-credit:" + f.c}`,
+  );
+  const payment = {
+    id: "pay_fixture" + randomUUID().replaceAll("-", ""),
+    order_id: providerOrder,
+    amount: 300,
+    currency: "INR",
+    status: "captured",
+    captured: true,
+  };
+  const result = await applyCaptured(payment);
+  await applyCaptured(payment);
+  assert.equal(result.state, "exception");
+  const refunds = await one(
+    db,
+    sql`select count(*)::int n,sum(amount)::int amount from mint.resolutions where order_id=${o.id}`,
+  );
+  assert.equal(refunds.n, 1);
+  assert.equal(refunds.amount, 300);
+  const ac = await one(
+    db,
+    sql`select available,reserved from mint.credit_accounts where user_id=${f.payer.id} and canteen_id=${f.c}`,
+  );
+  assert.equal(ac.available, 0);
+  assert.equal(ac.reserved, 0);
+  assert.equal((await portions(o.id))[0].missed_pickup_fine, 0);
 });

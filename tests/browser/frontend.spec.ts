@@ -1571,3 +1571,60 @@ test("expired pickups appear in history and have no collection action", async ({
     page.getByRole("button", { name: "Check in through my app" }),
   ).toHaveCount(0);
 });
+
+test("wallet shows per-credit expiry and missed-pickup receipt separates credit from fine", async ({
+  page,
+}) => {
+  const expires = new Date(Date.now() + 30 * 86400000).toISOString();
+  const expired = units.map((u) => ({
+    ...u,
+    state: "expired",
+    credit_returned: u.price * 0.9,
+    missed_pickup_fine: u.price * 0.1,
+  }));
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json:
+        path === "/api/catalogue"
+          ? catalogue
+          : path === "/api/orders/order-1"
+            ? {
+                order: { ...order, policy: "credit-30d-missed-10-v2-25+5" },
+                units: expired,
+                invitations: [],
+                resolutions: [],
+              }
+            : {
+                ...dashboard,
+                credits: [
+                  {
+                    ...dashboard.credits[0],
+                    available: 8100,
+                    lots: [{ available: 8100, expires_at: expires }],
+                  },
+                ],
+              },
+    });
+  });
+  await page.goto("/credit");
+  await expect(
+    page.getByText(/Credits expire 30 days after issue/),
+  ).toBeVisible();
+  await expect(page.locator(".credit-expiry")).toContainText(
+    "₹81.00 · expires",
+  );
+  await expect(page.locator(".credit-expiry")).toContainText("IST");
+  await noOverflow(page);
+  await page.screenshot({ path: ".local/qa/credit-expiry-390.png" });
+  await page.goto("/orders/order-1");
+  await page.getByRole("button", { name: "Receipt", exact: true }).click();
+  const receipt = page.locator(".receipt");
+  await expect(
+    receipt.locator(".ledger-line").filter({ hasText: "Credit returned" }),
+  ).toContainText("₹81.00");
+  await expect(
+    receipt.locator(".ledger-line").filter({ hasText: "Missed pickup fine" }),
+  ).toContainText("₹9.00");
+  await noOverflow(page);
+});

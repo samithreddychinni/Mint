@@ -9,6 +9,7 @@ import {
   index,
   uniqueIndex,
   check,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 export const mint = pgSchema("mint");
@@ -211,6 +212,8 @@ export const units = mint.table(
     collectionDeadline: time("collection_deadline"),
     collectedAt: time("collected_at"),
     resolved: boolean("resolved").notNull().default(false),
+    creditReturned: integer("credit_returned").notNull().default(0),
+    missedPickupFine: integer("missed_pickup_fine").notNull().default(0),
     token: text("token").notNull().unique(),
   },
   (t) => [
@@ -222,24 +225,79 @@ export const units = mint.table(
       sql`${t.credit}>=0 and ${t.external}>=0 and ${t.credit}+${t.external}=${t.price}`,
     ),
     check(
+      "unit_return",
+      sql`${t.creditReturned}>=0 and ${t.missedPickupFine}>=0 and ${t.creditReturned}+${t.missedPickupFine}<=${t.price}`,
+    ),
+    check(
       "unit_state",
       sql`${t.state} in ('pending','preparing','ready','collected','cancelled','expired')`,
     ),
   ],
 );
-export const ledger = mint.table("credit_ledger", {
-  id: id(),
-  accountId: uuid("account_id")
-    .notNull()
-    .references(() => accounts.id),
-  amount: integer("amount").notNull(),
-  reservedDelta: integer("reserved_delta").notNull().default(0),
-  source: text("source").notNull().unique(),
-  reason: text("reason").notNull(),
-  orderId: uuid("order_id").references(() => orders.id),
-  actorId: uuid("actor_id").references(() => profiles.id),
-  createdAt: time("created_at").notNull().defaultNow(),
-});
+export const ledger = mint.table(
+  "credit_ledger",
+  {
+    lotsProcessed: boolean("lots_processed").notNull().default(false),
+    id: id(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    amount: integer("amount").notNull(),
+    reservedDelta: integer("reserved_delta").notNull().default(0),
+    source: text("source").notNull().unique(),
+    reason: text("reason").notNull(),
+    orderId: uuid("order_id").references(() => orders.id),
+    actorId: uuid("actor_id").references(() => profiles.id),
+    createdAt: time("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("credit_ledger_unprocessed")
+      .on(t.accountId, t.createdAt, t.id)
+      .where(sql`not ${t.lotsProcessed}`),
+  ],
+);
+
+export const creditLots = mint.table(
+  "credit_lots",
+  {
+    id: id(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    source: text("source").notNull().unique(),
+    orderId: uuid("order_id").references(() => orders.id),
+    available: integer("available").notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    expired: integer("expired").notNull().default(0),
+    expiresAt: time("expires_at").notNull(),
+  },
+  (t) => [
+    index("credit_lots_account_expiry").on(t.accountId, t.expiresAt),
+    index("credit_lots_due")
+      .on(t.expiresAt)
+      .where(sql`${t.available}>0`),
+    check(
+      "credit_lot_nonnegative",
+      sql`${t.available}>=0 and ${t.reserved}>=0 and ${t.expired}>=0`,
+    ),
+  ],
+);
+export const creditReservations = mint.table(
+  "credit_reservations",
+  {
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id),
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => creditLots.id),
+    amount: integer("amount").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orderId, t.lotId] }),
+    check("credit_reservation_positive", sql`${t.amount}>0`),
+  ],
+);
 export const stock = mint.table("stock_events", {
   id: id(),
   batchId: uuid("batch_id")

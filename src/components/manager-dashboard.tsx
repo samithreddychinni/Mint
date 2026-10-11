@@ -13,6 +13,7 @@ export type ManagerSummary = {
   credit_used: number | string;
   credit_issued: number | string;
   credit_balance: number | string;
+  missed_pickup_fines?: number | string;
   collected_portions: number;
   pending_portions: number;
   arrived_portions: number;
@@ -140,6 +141,11 @@ export function ManagerDashboard({
           <div className="sales-grid">
             {[
               [
+                "Missed pickup fines",
+                summary.missed_pickup_fines ?? 0,
+                "10% of unarrived expired portions",
+              ],
+              [
                 "Payments captured",
                 summary.payments_captured,
                 "Money received through Razorpay",
@@ -170,7 +176,8 @@ export function ManagerDashboard({
           <p className="help-text">
             Paid order value includes credit payments and portions later
             cancelled. Captured payments and returned credit are separate
-            totals. Online orders only.
+            totals. Missed-pickup fines are included in paid order value. Online
+            orders only.
           </p>
           <section
             className="paper pickup-pulse"

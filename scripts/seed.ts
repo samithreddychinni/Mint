@@ -1,10 +1,10 @@
+import { move } from "../src/modules/credits";
 import { sql } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import type { SQL } from "drizzle-orm";
 const connection = postgres(
   process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL!,
   {
@@ -17,8 +17,6 @@ const connection = postgres(
   },
 );
 const db = drizzle(connection);
-const one = async (executor: Pick<typeof db, "execute">, query: SQL) =>
-  Array.from(await executor.execute(query))[0];
 const uuid = (name: string) => {
   const h = createHash("sha256")
     .update("mint-demo-v1:" + name)
@@ -130,42 +128,33 @@ try {
         sql`insert into mint.roles(id,user_id,canteen_id,station_id,role) values(${uuid(name + station + "staff")},${user},${canteen},${uuid(name + station)},'serving') on conflict(id) do nothing`,
       );
     }
-    await db.execute(
-      sql`insert into mint.credit_accounts(user_id,canteen_id) values(${payer},${canteen}) on conflict(user_id,canteen_id) do nothing`,
-    );
-    const account = await one(
-      db,
-      sql`select id from mint.credit_accounts where user_id=${payer} and canteen_id=${canteen}`,
-    );
-    await db.transaction(async (tx) => {
-      const grant = await one(
+    await db.transaction((tx) =>
+      move(
         tx,
-        sql`insert into mint.credit_ledger(account_id,amount,source,reason,actor_id) values(${account!.id},20000,${"demo-seed-credit:" + canteen},'Labelled demonstration credit; not real money',${payer}) on conflict(source) do nothing returning id`,
-      );
-      if (grant)
-        await tx.execute(
-          sql`update mint.credit_accounts set available=available+20000 where id=${account!.id}`,
-        );
-    });
-  }
-  const mainId = uuid("Main");
-  await db.execute(
-    sql`insert into mint.credit_accounts(user_id,canteen_id) values(${browserPayer},${mainId}) on conflict(user_id,canteen_id) do nothing`,
-  );
-  const browserAccount = await one(
-    db,
-    sql`select id from mint.credit_accounts where user_id=${browserPayer} and canteen_id=${mainId}`,
-  );
-  await db.transaction(async (tx) => {
-    const grant = await one(
-      tx,
-      sql`insert into mint.credit_ledger(account_id,amount,source,reason,actor_id) values(${browserAccount!.id},100000,'demo-browser-credit-v1','Labelled automated browser demonstration credit; not real money',${browserPayer}) on conflict(source) do nothing returning id`,
+        null,
+        payer,
+        canteen,
+        20000,
+        0,
+        "demo-seed-credit:" + canteen,
+        "Labelled demonstration credit; not real money",
+        null,
+      ),
     );
-    if (grant)
-      await tx.execute(
-        sql`update mint.credit_accounts set available=available+100000 where id=${browserAccount!.id}`,
-      );
-  });
+  }
+  await db.transaction((tx) =>
+    move(
+      tx,
+      null,
+      browserPayer,
+      uuid("Main"),
+      100000,
+      0,
+      "demo-browser-credit-v1",
+      "Labelled automated browser demonstration credit; not real money",
+      null,
+    ),
+  );
   console.log(
     "Seed verified: three demo canteens, scoped Auth identities, labelled credit. Passwords only in ignored .local/demo-accounts.json.",
   );

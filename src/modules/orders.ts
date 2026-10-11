@@ -15,8 +15,9 @@ import {
 } from "./core";
 import { orderLimits } from "./order-limits";
 import { itemAllowance } from "../lib/order-limits";
-import { account, move } from "./credits";
+import { account, move, expireCredits } from "./credits";
 import { insist } from "../lib/errors";
+import { CREDIT_POLICY, missedPickupCredit } from "../lib/credit-policy";
 export type Cart = {
   canteenId: string;
   lines: { itemId: string; quantity: number; price: number }[];
@@ -24,6 +25,7 @@ export type Cart = {
   key: string;
 };
 export async function expireTx(tx: Tx, canteen: string) {
+  await expireCredits(tx, canteen);
   const due = await one(
     tx,
     sql`select exists(select 1 from mint.orders where canteen_id=${canteen} and state='pending' and hold_until<=clock_timestamp()) or exists(select 1 from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and o.state='confirmed' and o.deadline<=clock_timestamp() and u.arrived_at is null and u.state='pending') as due`,
@@ -64,7 +66,7 @@ export async function expireTx(tx: Tx, canteen: string) {
   }
   const units = await rows(
     tx,
-    sql`select u.*,o.payer_id from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and o.state='confirmed' and o.deadline<=clock_timestamp() and u.arrived_at is null and u.state='pending' order by u.order_id,u.id for update of u`,
+    sql`select u.*,o.payer_id,o.policy from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and o.state='confirmed' and o.deadline<=clock_timestamp() and u.arrived_at is null and u.state='pending' order by u.order_id,u.id for update of u`,
   );
   for (const u of units)
     await cancelUnit(
@@ -111,23 +113,33 @@ export async function cancelUnit(
   await tx.execute(
     sql`insert into mint.stock_events(batch_id,quantity,kind,source,actor_id) values(${u.batch_id},1,${reusable ? "cancel_release" : "cancel_waste"},${"cancel:" + u.id},${a?.id || null}) on conflict(source) do nothing`,
   );
+  const returned =
+    state === "expired" && u.policy === CREDIT_POLICY
+      ? missedPickupCredit(Number(u.price))
+      : { credit: Number(u.price), fine: 0 };
+  const creditReason =
+    returned.fine > 0
+      ? `${reason} — 10% missed-pickup fine (₹${(returned.fine / 100).toFixed(2)}); remaining 90% credited`
+      : reason;
   await move(
     tx,
     a,
     payer,
     canteen,
-    Number(u.price),
+    returned.credit,
     0,
     "cancel:" + u.id,
-    reason,
+    creditReason,
     String(u.order_id),
   );
   await tx.execute(
-    sql`update mint.units set state=${state},resolved=true,version=version+1 where id=${u.id}`,
+    sql`update mint.units set state=${state},resolved=true,version=version+1,credit_returned=${returned.credit},missed_pickup_fine=${returned.fine} where id=${u.id}`,
   );
   await audit(tx, a, "cancel_portion", String(u.id), "cancel-audit:" + u.id, {
     reason,
     treatment: "same-canteen credit",
+    credit: returned.credit,
+    fine: returned.fine,
   });
 }
 export async function hold(a: Actor, cart: Cart) {
@@ -288,7 +300,7 @@ export async function hold(a: Actor, cart: Cart) {
       const id = randomUUID();
       const order = await one(
         tx,
-        sql`insert into mint.orders(id,reference,payer_id,canteen_id,total,credit,external,request_key,request_hash,hold_until) values(${id},${"M" + secret().slice(0, 8).toUpperCase()},${a.id},${cart.canteenId},${total},${cart.credit},${total - cart.credit},${a.id + ":" + cart.key},${requestHash},clock_timestamp()+interval '3 minutes') returning *`,
+        sql`insert into mint.orders(id,reference,payer_id,canteen_id,total,credit,external,request_key,request_hash,hold_until,policy) values(${id},${"M" + secret().slice(0, 8).toUpperCase()},${a.id},${cart.canteenId},${total},${cart.credit},${total - cart.credit},${a.id + ":" + cart.key},${requestHash},clock_timestamp()+interval '3 minutes',${CREDIT_POLICY}) returning *`,
       );
       if (cart.credit)
         await move(

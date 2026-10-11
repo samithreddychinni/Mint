@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { one, scope, type Actor, type Row } from "./core";
+import { expireCredits } from "./credits";
+import { atomic, one, scope, type Actor, type Row } from "./core";
 
 export async function managerSummary(
   a: Actor,
@@ -8,6 +9,7 @@ export async function managerSummary(
   period: "today" | "week",
 ): Promise<Row> {
   await scope(db, a, canteen, ["manager"]);
+  await atomic(canteen, (tx) => expireCredits(tx, canteen));
   // One statement keeps totals consistent without multiplying orders by their portions.
   const result = await one(
     db,
@@ -32,6 +34,7 @@ export async function managerSummary(
     (select coalesce(sum(credit),0)::bigint from paid) credit_used,
     (select coalesce(sum(p.amount),0)::bigint from mint.payments p join mint.orders o on o.id=p.order_id, bounds b where o.canteen_id=${canteen} and p.status='captured' and p.created_at>=b.start_at and p.created_at<=b.end_at) payments_captured,
     (select coalesce(sum(l.amount),0)::bigint from mint.credit_ledger l join mint.credit_accounts ac on ac.id=l.account_id, bounds b where ac.canteen_id=${canteen} and l.source like 'cancel:%' and l.created_at>=b.start_at and l.created_at<=b.end_at) credit_issued,
+    (select coalesce(sum(u.missed_pickup_fine),0)::bigint from mint.units u join mint.orders o on o.id=u.order_id,bounds b where o.canteen_id=${canteen} and u.state='expired' and exists(select 1 from mint.credit_ledger l where l.source='cancel:'||u.id and l.created_at>=b.start_at and l.created_at<=b.end_at)) missed_pickup_fines,
     (select coalesce(sum(available+reserved),0)::bigint from mint.credit_accounts where canteen_id=${canteen}) credit_balance,
     (select count(*)::int from mint.units u join mint.orders o on o.id=u.order_id, bounds b where o.canteen_id=${canteen} and u.state='collected' and u.collected_at>=b.start_at and u.collected_at<=b.end_at) collected_portions,
     (select count(*)::int from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and o.state='confirmed' and u.state in ('pending','preparing','ready')) pending_portions,

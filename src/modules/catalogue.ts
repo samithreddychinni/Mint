@@ -10,6 +10,7 @@ import {
   type Row,
 } from "./core";
 import { orderLimits } from "./order-limits";
+import { expireCredits } from "./credits";
 import { expireTx } from "./orders";
 export async function catalogue() {
   const canteensRead = rows(
@@ -63,6 +64,7 @@ export async function orderView(a: Actor, id: string) {
         'state',u.state,'mode',u.mode,'version',u.version,'arrived_at',u.arrived_at,
         'collection_deadline',u.collection_deadline,'collected_at',u.collected_at,
         'collector_id',u.collector_id,'collector_name',p.name,'token',u.token,
+        'credit_returned',case when ${payer} then u.credit_returned else null end,'missed_pickup_fine',case when ${payer} then u.missed_pickup_fine else null end,
         'price',case when ${payer} then u.price else null end,'payer',${payer}::boolean) portion
       from mint.units u join mint.stations s on s.id=u.station_id join mint.profiles p on p.id=u.collector_id
       where u.order_id=o.id and (${payer} or u.collector_id=${a.id})
@@ -104,6 +106,13 @@ export async function dashboard(a: Actor) {
       invitations: [],
       serverTime: new Date().toISOString(),
     };
+  for (const ac of await rows(
+    db,
+    sql`select ac.canteen_id from mint.credit_accounts ac where ac.user_id=${a.id} and (exists(select 1 from mint.credit_lots l where l.account_id=ac.id and l.available>0 and l.expires_at<=clock_timestamp()) or exists(select 1 from mint.credit_ledger l where l.account_id=ac.id and not l.lots_processed)) order by ac.canteen_id`,
+  ))
+    await atomic(String(ac.canteen_id), (tx) =>
+      expireCredits(tx, String(ac.canteen_id), a.id),
+    );
   const [orders, credits, ledger, invitations, limits] = await Promise.all([
     rows(
       db,
@@ -111,7 +120,7 @@ export async function dashboard(a: Actor) {
     ),
     rows(
       db,
-      sql`select a.*,c.name canteen_name from mint.credit_accounts a join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id}`,
+      sql`select a.*,c.name canteen_name,coalesce((select jsonb_agg(jsonb_build_object('available',l.available,'expires_at',l.expires_at) order by l.expires_at,l.id) from mint.credit_lots l where l.account_id=a.id and l.available>0 and l.expires_at>clock_timestamp()),'[]'::jsonb) lots from mint.credit_accounts a join mint.canteens c on c.id=a.canteen_id where a.user_id=${a.id}`,
     ),
     rows(
       db,
@@ -137,6 +146,7 @@ export async function dashboard(a: Actor) {
 }
 export async function managerView(a: Actor, canteen: string) {
   await scope(db, a, canteen, ["manager"]);
+  await atomic(canteen, (tx) => expireCredits(tx, canteen));
   return {
     exceptions: await rows(
       db,
@@ -160,7 +170,7 @@ export async function managerView(a: Actor, canteen: string) {
     ),
     report: await rows(
       db,
-      sql`select (select coalesce(sum(o.total),0) from mint.orders o where o.canteen_id=${canteen} and o.state='confirmed')::bigint gross_sales,(select coalesce(sum(amount),0) from mint.payments p join mint.orders o on o.id=p.order_id where o.canteen_id=${canteen})::bigint external_captured,(select coalesce(sum(available+reserved),0) from mint.credit_accounts where canteen_id=${canteen})::bigint credit_liability,(select coalesce(sum(l.amount),0) from mint.credit_ledger l join mint.credit_accounts a on a.id=l.account_id where a.canteen_id=${canteen} and l.source like 'cancel:%')::bigint credit_issued,(select coalesce(sum(credit),0) from mint.orders where canteen_id=${canteen} and state='confirmed')::bigint credit_spent,(select coalesce(sum(amount),0) from mint.resolutions r join mint.orders o on o.id=r.order_id where o.canteen_id=${canteen})::bigint refunds_requested,(select coalesce(sum(amount),0) from mint.resolutions r join mint.orders o on o.id=r.order_id where o.canteen_id=${canteen} and r.state='completed')::bigint refunds_completed,(select count(*) from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and u.state='collected')::int collected_portions`,
+      sql`select (select coalesce(sum(o.total),0) from mint.orders o where o.canteen_id=${canteen} and o.state='confirmed')::bigint gross_sales,(select coalesce(sum(amount),0) from mint.payments p join mint.orders o on o.id=p.order_id where o.canteen_id=${canteen})::bigint external_captured,(select coalesce(sum(available+reserved),0) from mint.credit_accounts where canteen_id=${canteen})::bigint credit_liability,(select coalesce(sum(u.missed_pickup_fine),0)::bigint from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen}) missed_pickup_fines,(select coalesce(sum(l.amount),0) from mint.credit_ledger l join mint.credit_accounts a on a.id=l.account_id where a.canteen_id=${canteen} and l.source like 'cancel:%')::bigint credit_issued,(select coalesce(sum(credit),0) from mint.orders where canteen_id=${canteen} and state='confirmed')::bigint credit_spent,(select coalesce(sum(amount),0) from mint.resolutions r join mint.orders o on o.id=r.order_id where o.canteen_id=${canteen})::bigint refunds_requested,(select coalesce(sum(amount),0) from mint.resolutions r join mint.orders o on o.id=r.order_id where o.canteen_id=${canteen} and r.state='completed')::bigint refunds_completed,(select count(*) from mint.units u join mint.orders o on o.id=u.order_id where o.canteen_id=${canteen} and u.state='collected')::int collected_portions`,
     ),
     audit: await rows(
       db,

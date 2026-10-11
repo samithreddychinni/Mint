@@ -1,4 +1,5 @@
 "use client";
+import { CREDIT_POLICY } from "../lib/credit-policy";
 import {
   itemAllowance,
   LIMIT_TIERS,
@@ -103,10 +104,13 @@ type Unit = {
   collector_name: string;
   token: string;
   price?: number;
+  credit_returned?: number;
+  missed_pickup_fine?: number;
   overdue?: boolean;
   reference?: string;
 };
 type Order = {
+  policy?: string;
   id: string;
   reference: string;
   state: string;
@@ -131,6 +135,7 @@ type Invitation = {
   portions?: { name: string; station: string }[];
 };
 type Credit = {
+  lots?: { available: number; expires_at: string }[];
   canteen_id: string;
   canteen_name: string;
   available: number;
@@ -1596,9 +1601,11 @@ export function MintApp() {
                       <div className="policy-line">
                         <Wallet />
                         <p>
-                          Eligible canceled or unarrived portions become{" "}
+                          Eligible cancellations return as{" "}
                           <strong>{c?.name} canteen credit</strong>, not a bank
-                          refund. Prepared food needs staff review.
+                          refund. Missed arrival deadlines return 90%; a 10%
+                          fine is deducted. Credits expire after 30 days.
+                          Prepared food needs staff review.
                         </p>
                       </div>
                       <p className="help-text">
@@ -2197,9 +2204,41 @@ export function MintApp() {
                             {money(detail.order.external)}
                           </p>
                           <p className="help-text">
-                            Eligible expired or canceled portions return as
-                            same-canteen credit.
+                            {detail.order.policy === CREDIT_POLICY
+                              ? "Eligible cancellations return as same-canteen credit. Missed pickups return 90% after a 10% fine. Credits expire after 30 days."
+                              : "This order keeps its original full-credit cancellation policy. Returned credits expire after 30 days."}
                           </p>
+                          {detail.units.some(
+                            (u) => (u.credit_returned || 0) > 0,
+                          ) && (
+                            <div className="ledger-line">
+                              <span>Credit returned</span>
+                              <strong>
+                                {money(
+                                  detail.units.reduce(
+                                    (sum, u) => sum + (u.credit_returned || 0),
+                                    0,
+                                  ),
+                                )}
+                              </strong>
+                            </div>
+                          )}
+                          {detail.units.some(
+                            (u) => (u.missed_pickup_fine || 0) > 0,
+                          ) && (
+                            <div className="ledger-line">
+                              <span>Missed pickup fine · 10%</span>
+                              <strong>
+                                {money(
+                                  detail.units.reduce(
+                                    (sum, u) =>
+                                      sum + (u.missed_pickup_fine || 0),
+                                    0,
+                                  ),
+                                )}
+                              </strong>
+                            </div>
+                          )}
                           <Button
                             variant="link"
                             onClick={() => setTab("credit")}
@@ -2584,7 +2623,7 @@ export function MintApp() {
                 <PageHeading
                   eyebrow="FOR YOUR NEXT CAMPUS BREAK"
                   title="Canteen credit"
-                  text="Credit stays at the original canteen. It does not return to your bank."
+                  text="Credits expire 30 days after issue and can be used only at the original canteen. The earliest expiry is spent first."
                 />
                 <div className="credit-grid">
                   {me.credits.map((credit) => (
@@ -2595,6 +2634,20 @@ export function MintApp() {
                       </div>
                       <strong>{money(credit.available)}</strong>
                       <p>Available for your next order</p>
+                      {credit.lots?.map((lot, index) => (
+                        <small className="credit-expiry" key={index}>
+                          {money(lot.available)} · expires{" "}
+                          {new Date(lot.expires_at).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          IST
+                        </small>
+                      ))}
                       {credit.reserved > 0 && (
                         <small>
                           {money(credit.reserved)} reserved in a checkout
@@ -2610,6 +2663,11 @@ export function MintApp() {
                     text="Any eligible cancellation credit will appear here, at its original canteen."
                   />
                 )}
+                <p className="help-text">
+                  Missing the arrival deadline returns 90% of the missed
+                  portions’ value as credit. The remaining 10% is a fine.
+                  Canteen-approved cancellations have no missed-pickup fine.
+                </p>
                 <section className="paper">
                   <h2>Credit activity</h2>
                   {me.ledger.length ? (

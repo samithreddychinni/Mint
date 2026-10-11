@@ -67,21 +67,21 @@ The dimensions, typography, and layouts below are the selected implementation co
 
 ## 3. Business behaviour that must remain intact
 
-| Step             | Required behaviour                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------------- |
-| Menu publishing  | Authorized staff publish items, prices, counters, and available quantities.                           |
-| Ordering         | A student chooses Main, IT, or MBA. One cart belongs to one canteen.                                  |
-| Checkout         | The server validates prices, reserves quantities, and verifies payment.                               |
-| Receipt          | Show a confirmed receipt only after the server confirms payment.                                      |
-| Arrival          | Accept fresh student geolocation or an authenticated staff scan of a valid pickup pass.               |
-| Arrival deadline | Show the 25-minute target and final deadline after five minutes of grace.                             |
-| Expiry           | Eligible unarrived portions become the payer's same-canteen credit. They do not create a bank refund. |
-| Pickup           | Staff scan a pass, inspect permitted portions, and confirm only portions physically handed over.      |
-| Preparation      | Unfinished items retain their pending tokens. Staff can process another student immediately.          |
-| Completion       | An order finishes only when every portion reaches its final state.                                    |
-| Friends          | The payer selects portions and invites a verified friend. Acceptance transfers pickup rights.         |
-| Delegation       | Acceptance creates neither another payment nor another preparation task.                              |
-| Authentication   | Students use university-email OTP. Staff use separately assigned accounts.                            |
+| Step             | Required behaviour                                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Menu publishing  | Authorized staff publish items, prices, counters, and available quantities.                                           |
+| Ordering         | A student chooses Main, IT, or MBA. One cart belongs to one canteen.                                                  |
+| Checkout         | The server validates prices, reserves quantities, and verifies payment.                                               |
+| Receipt          | Show a confirmed receipt only after the server confirms payment.                                                      |
+| Arrival          | Accept fresh student geolocation or an authenticated staff scan of a valid pickup pass.                               |
+| Arrival deadline | Show the 25-minute target and final deadline after five minutes of grace.                                             |
+| Expiry           | New-policy missed arrivals return 90% as payer credit, with a 10% fine. Credits expire after 30 days; no bank refund. |
+| Pickup           | Staff scan a pass, inspect permitted portions, and confirm only portions physically handed over.                      |
+| Preparation      | Unfinished items retain their pending tokens. Staff can process another student immediately.                          |
+| Completion       | An order finishes only when every portion reaches its final state.                                                    |
+| Friends          | The payer selects portions and invites a verified friend. Acceptance transfers pickup rights.                         |
+| Delegation       | Acceptance creates neither another payment nor another preparation task.                                              |
+| Authentication   | Students use university-email OTP. Staff use separately assigned accounts.                                            |
 
 Do not describe online ordering as priority in the serving queue. It skips the billing queue.
 

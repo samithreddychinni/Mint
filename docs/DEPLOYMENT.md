@@ -154,3 +154,13 @@ Verification:
 - Supabase security advisors report the same three pre-existing platform warnings: anonymous/authenticated execution of `public.rls_auto_enable()` and disabled leaked-password protection. This change adds no public database policies or grants.
 
 Physical Android interaction, actual long-term student history and large simultaneous-user load remain unverified. Multiple verified students can still coordinate purchases. No unlimited group-order override or delivery feature was added.
+
+## Wallet credit expiry and missed-pickup fines
+
+Migrations `0008_great_morbius` and `0009_yielding_pete_wisdom` must run before deploying the backend. They add private credit lots, checkout allocations, ledger processing markers, and portion-level credit/fine amounts. Existing balances receive 30 days from migration; historical refunds are not reduced. Orders already placed retain their original policy. New orders snapshot `credit-30d-missed-10-v2-25+5`.
+
+Each new credit expires 30 days after issue. Checkout spends the earliest expiry first. Reserved credit can complete its existing three-minute checkout. Releasing a hold restores its original expiry; credit whose deadline has passed expires immediately rather than receiving another 30 days. Account reads, checkout and the existing worker enforce expiry with the same transaction locks. Expiry produces a negative ledger entry.
+
+For the new policy, a paid portion that expires without arrival returns 90% of its price to the payer at the original canteen. The remaining 10% is a missed-pickup fine, rounded to the nearest paise per portion. Collected portions are not credited or fined. Ordinary eligible cancellations and manager-approved canteen failures return full credit. A checked-in portion that is waiting for preparation or collection still requires manager review; it does not automatically receive this fine. Fines appear separately on the payer’s receipt and manager sales overview. Wallet cards show each remaining credit amount and expiry time in IST.
+
+During a rolling backend deployment, account reads replay unprocessed ledger movements written by the previous version. This preserves credit lots and reservations without repeating account balance changes. Deploy the backend first, verify its revision and worker health, then publish the frontend. Do not run menu imports, seeds or balance resets as part of this release.
